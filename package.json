@@ -7,12 +7,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Eagerz1/space-client.git"
+    "url": "git+https://github.com/Eagerz/space-client.git"
   },
   "bugs": {
-    "url": "https://github.com/Eagerz1/space-client/issues"
+    "url": "https://github.com/Eagerz/space-client/issues"
   },
-  "homepage": "https://github.com/Eagerz1/space-client#readme",
+  "homepage": "https://github.com/Eagerz/space-client#readme",
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
     "start": "electron .",
@@ -42,7 +42,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "Eagerz1",
+        "owner": "Eagerz",
         "repo": "space-client",
         "releaseType": "release"
       }
