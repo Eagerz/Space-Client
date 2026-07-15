@@ -1,0 +1,74 @@
+{
+  "name": "space-client",
+  "version": "1.0.0",
+  "description": "Space Client — premium Minecraft companion launcher",
+  "main": "main.js",
+  "author": "Space Client",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eagerz1/space-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Eagerz1/space-client/issues"
+  },
+  "homepage": "https://github.com/Eagerz1/space-client#readme",
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.spaceclient.app",
+    "productName": "Space Client",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "auth-session.js",
+      "game-launcher.js",
+      "src/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Eagerz1",
+        "repo": "space-client",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.games"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game"
+    }
+  },
+  "dependencies": {
+    "axios": "^1.18.1",
+    "electron-mc-auth": "^0.2.2-1",
+    "minecraft-java-core": "^4.2.8",
+    "tslib": "^2.8.1"
+  }
+}

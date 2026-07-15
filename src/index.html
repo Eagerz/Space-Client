@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.modrinth.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://mc-heads.net https://cdn.modrinth.com https://textures.minecraft.net data:; script-src 'self'" />
+  <title>Space Client</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Syne:wght@800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="window" id="app">
+  <header class="titlebar">
+    <div class="titlebar-left" aria-hidden="true"></div>
+    <div class="titlebar-player">
+      <span class="titlebar-status-dot offline" id="titlebar-status-dot" aria-hidden="true"></span>
+      <span class="titlebar-player-name" id="titlebar-player-name">Guest</span>
+    </div>
+    <div class="window-controls">
+      <button class="window-btn" id="btn-minimize" type="button" aria-label="Minimize">
+        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button class="window-btn" id="btn-maximize" type="button" aria-label="Maximize">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="9" height="9"/></svg>
+      </button>
+      <button class="window-btn close" id="btn-close" type="button" aria-label="Close">
+        <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <nav class="sidebar-left" aria-label="Main navigation">
+      <button class="nav-btn active" data-view="home" type="button" title="Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+      </button>
+      <button class="nav-btn" data-view="mods" type="button" title="Mod Library">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button class="nav-btn" data-view="modpacks" type="button" title="Modpacks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
+      </button>
+      <button class="nav-btn" data-view="cosmetics" type="button" title="Cosmetics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.8 5.7 21l2.3-7-6-4.6h7.6z"/></svg>
+      </button>
+      <button class="nav-btn" data-view="presets" type="button" title="Presets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h10M4 18h16"/><circle cx="18" cy="12" r="2" fill="currentColor"/></svg>
+      </button>
+      <button class="nav-btn" data-view="settings" type="button" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+      <button class="nav-btn nav-btn-spaceplus" data-view="spaceplus" type="button" title="Space+">
+        <span class="nav-icon-spaceplus" aria-hidden="true"></span>
+      </button>
+      <button class="nav-btn nav-btn-store" data-view="store" type="button" title="Store">
+        <span class="nav-icon-store" aria-hidden="true"></span>
+      </button>
+      <div class="sidebar-spacer"></div>
+      <button class="nav-btn" data-view="account" type="button" title="Account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </button>
+    </nav>
+
+    <main class="main-panel">
+      <div class="sky-bg" aria-hidden="true">
+        <div class="sky-scene">
+          <img class="sky-art" src="assets/minecraft-space-bg.png" alt="" draggable="false" />
+          <div class="sky-glints"></div>
+          <div class="sky-depth-vignette"></div>
+        </div>
+      </div>
+      <div class="sky-overlay" aria-hidden="true"></div>
+
+      <section class="view active" id="view-home">
+        <div class="hero">
+          <div class="hero-bg"></div>
+          <div class="hero-stars"></div>
+          <div class="hero-content">
+            <div class="hero-greeting-area">
+              <p class="hero-greeting">
+                Welcome aboard, <span class="hero-greeting-name" id="hero-greeting-name">Guest</span>
+              </p>
+            </div>
+            <button class="btn-play" type="button" disabled aria-disabled="true" title="Sign in to play">PLAY</button>
+            <div class="launch-progress" id="launch-progress" hidden>
+              <div class="launch-progress-meta">
+                <span class="launch-progress-label" id="launch-progress-label">Preparing…</span>
+                <span class="launch-progress-pct" id="launch-progress-pct">0%</span>
+              </div>
+              <div class="launch-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="launch-progress-bar">
+                <div class="launch-progress-fill" id="launch-progress-fill"></div>
+              </div>
+              <div class="launch-progress-detail" id="launch-progress-detail"></div>
+            </div>
+          </div>
+        </div>
+        <div class="launch-selectors">
+          <select class="launch-select" id="home-version" aria-label="Minecraft version"></select>
+          <select class="launch-select" id="home-loader" aria-label="Mod loader">
+            <option value="vanilla">Vanilla</option>
+            <option value="fabric">Fabric</option>
+          </select>
+        </div>
+        <section class="home-news" aria-labelledby="home-news-heading">
+          <header class="home-news-header">
+            <h2 id="home-news-heading">Latest</h2>
+          </header>
+          <div class="home-news-list" id="home-news-list"></div>
+        </section>
+      </section>
+
+      <section class="view" id="view-mods">
+        <header class="mods-header">
+          <div class="section-header">
+            <h2>Mod Library</h2>
+            <p>Browse and install mods from <a class="modrinth-link" href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a></p>
+          </div>
+          <div class="mods-toolbar">
+            <div class="mods-search-wrap">
+              <svg class="mods-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <input type="search" class="mods-search" id="modrinth-search" placeholder="Search mods…" autocomplete="off" />
+            </div>
+            <select class="select-field mods-filter" id="modrinth-loader" aria-label="Mod loader">
+              <option value="fabric">Fabric</option>
+              <option value="forge">Forge</option>
+              <option value="quilt">Quilt</option>
+              <option value="neoforge">NeoForge</option>
+            </select>
+            <select class="select-field mods-filter" id="modrinth-sort" aria-label="Sort order">
+              <option value="downloads">Most Downloads</option>
+              <option value="relevance">Relevance</option>
+              <option value="newest">Newest</option>
+              <option value="updated">Recently Updated</option>
+              <option value="follows">Most Followed</option>
+            </select>
+          </div>
+        </header>
+        <div class="modrinth-meta" id="modrinth-meta"></div>
+        <div class="modrinth-grid" id="modrinth-grid"></div>
+        <div class="modrinth-pagination" id="modrinth-pagination"></div>
+      </section>
+
+      <section class="view" id="view-modpacks">
+        <header class="section-header">
+          <h2>Modpacks</h2>
+          <p>Browse and install modpacks from <a class="modrinth-link" href="https://modrinth.com/modpacks" target="_blank" rel="noopener">Modrinth</a></p>
+        </header>
+        <div class="modpacks-placeholder">
+          <p>Modpack management coming soon.</p>
+        </div>
+      </section>
+
+      <section class="view" id="view-cosmetics">
+        <header class="section-header">
+          <h2>Cosmetics</h2>
+          <p>Browse and equip capes and pets for your profile</p>
+        </header>
+        <div class="cosmetics-toolbar">
+          <div class="cosmetics-tabs" role="tablist" aria-label="Cosmetic categories">
+            <button type="button" class="cosmetics-tab active" data-cosmetics-tab="capes" role="tab" aria-selected="true">Capes</button>
+            <button type="button" class="cosmetics-tab" data-cosmetics-tab="pets" role="tab" aria-selected="false">Pets</button>
+          </div>
+          <p class="cosmetics-meta" id="cosmetics-meta"></p>
+        </div>
+        <div class="cosmetics-grid" id="cosmetics-grid"></div>
+      </section>
+
+      <section class="view" id="view-presets">
+        <header class="section-header">
+          <h2>Presets</h2>
+          <p>Save and switch between launch configurations</p>
+        </header>
+        <div class="presets-placeholder">
+          <p>Preset management coming soon.</p>
+        </div>
+      </section>
+
+      <section class="view" id="view-spaceplus">
+        <header class="section-header">
+          <h2>Space+</h2>
+          <p>Premium subscription with exclusive perks and early access</p>
+        </header>
+
+        <div class="spaceplus-page">
+          <div class="spaceplus-hero">
+            <span class="spaceplus-badge">Premium</span>
+            <div class="spaceplus-hero-icon" aria-hidden="true"></div>
+            <h3 class="spaceplus-hero-title">Unlock the full Space experience</h3>
+            <p class="spaceplus-hero-sub">Priority access and exclusive cosmetics — all in one subscription.</p>
+
+            <div class="spaceplus-billing-toggle" role="group" aria-label="Billing interval">
+              <button type="button" class="spaceplus-toggle-btn active" data-interval="monthly">Monthly</button>
+              <button type="button" class="spaceplus-toggle-btn" data-interval="annual">Annual</button>
+            </div>
+
+            <div class="spaceplus-price-block">
+              <div class="spaceplus-price" id="spaceplus-price">
+                <span class="spaceplus-price-amount">€4.99</span>
+                <span class="spaceplus-price-period">/ Month</span>
+              </div>
+              <span class="spaceplus-save-badge" id="spaceplus-save-badge" hidden>Save 16%</span>
+            </div>
+
+            <div class="spaceplus-cta-block" id="spaceplus-upgrade-block">
+              <button type="button" class="btn-spaceplus-upgrade" id="spaceplus-upgrade-btn">Upgrade to Space+</button>
+            </div>
+
+            <div class="spaceplus-cta-block spaceplus-subscribed" id="spaceplus-subscribed-block" hidden>
+              <p class="spaceplus-renewal">Next Renewal: <strong>August 1st, 2026</strong></p>
+              <button type="button" class="btn-spaceplus-manage" id="spaceplus-manage-btn">Manage Subscription</button>
+            </div>
+          </div>
+
+          <div class="spaceplus-compare">
+            <h3 class="spaceplus-section-title">Compare plans</h3>
+            <div class="spaceplus-compare-table-wrap">
+              <table class="spaceplus-compare-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Feature</th>
+                    <th scope="col">Free</th>
+                    <th scope="col">Space+</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Priority Launch Queue</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                  </tr>
+                  <tr>
+                    <td>Exclusive Launcher Cosmetics</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes, 5+ unlocked</span></td>
+                  </tr>
+                  <tr>
+                    <td>Discord Premium Role &amp; Beta Features</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                  </tr>
+                  <tr>
+                    <td>Custom Launcher Profile Badge</td>
+                    <td><span class="spaceplus-val-muted">Standard</span></td>
+                    <td><span class="spaceplus-val-yes">Animated Star</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="spaceplus-perks">
+            <h3 class="spaceplus-section-title">Premium perks</h3>
+            <div class="spaceplus-perks-grid">
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <h4>Priority Launch Queue</h4>
+                <p>Skip the line and launch first during peak hours.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
+                </div>
+                <h4>Exclusive Cosmetics</h4>
+                <p>5+ premium launcher themes and profile frames.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                </div>
+                <h4>Discord Premium Role</h4>
+                <p>Exclusive role and early beta feature access.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
+                </div>
+                <h4>Animated Star Badge</h4>
+                <p>Stand out with a shimmering profile badge.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h4>Early Access</h4>
+                <p>Be first to try new launcher features and updates.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="spaceplus-billing-block">
+            <div class="spaceplus-billing-inner">
+              <div class="spaceplus-billing-info">
+                <h3 class="spaceplus-section-title">Billing &amp; plan</h3>
+                <p class="spaceplus-billing-desc" id="spaceplus-billing-desc">Subscribe to Space+ for premium perks across the launcher.</p>
+              </div>
+              <div class="spaceplus-billing-actions" id="spaceplus-billing-actions">
+                <button type="button" class="btn-spaceplus-upgrade btn-spaceplus-upgrade-sm" id="spaceplus-billing-upgrade-btn">Upgrade to Space+</button>
+              </div>
+              <div class="spaceplus-billing-actions spaceplus-subscribed" id="spaceplus-billing-subscribed" hidden>
+                <p class="spaceplus-renewal-inline">Next Renewal: <strong>August 1st, 2026</strong></p>
+                <button type="button" class="btn-spaceplus-manage" id="spaceplus-billing-manage-btn">Manage Subscription</button>
+              </div>
+            </div>
+            <button type="button" class="spaceplus-demo-toggle" id="spaceplus-demo-toggle" title="Toggle demo subscription state">Demo: toggle subscription</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-store">
+        <header class="section-header">
+          <h2>Store</h2>
+          <p>Purchase credits for cosmetics, boosts, and premium features</p>
+        </header>
+
+        <div class="store-balance-card">
+          <div class="store-balance-label">Your balance</div>
+          <div class="store-balance-row">
+            <svg class="credit-icon credit-icon-lg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+              <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+            </svg>
+            <span class="store-balance-amount" id="store-credit-balance">0</span>
+            <span class="store-balance-unit">credits</span>
+          </div>
+        </div>
+
+        <div class="store-rate-block" aria-label="Conversion rate: 100 credits equals 1 euro">
+          <div class="store-rate-graphic" aria-hidden="true">
+            <span class="store-rate-chip">
+              <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+              </svg>
+              100
+            </span>
+            <svg class="store-rate-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span class="store-rate-chip store-rate-chip-eur">€1.00</span>
+          </div>
+          <p class="store-rate-label">
+            <strong>
+              <svg class="credit-icon credit-icon-inline" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+              </svg>
+              100 Credits
+            </strong>
+            = <strong>€1.00 EUR</strong>
+          </p>
+        </div>
+
+        <div class="store-layout">
+          <div class="store-main">
+            <h3 class="store-section-title">Credit Amounts</h3>
+            <div class="store-packs" id="store-packs">
+              <article class="store-pack-card selected" data-pack-id="pack-500" tabindex="0" role="button" aria-pressed="true">
+                <div class="store-pack-credits">
+                  <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                    <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+                  </svg>
+                  <span>500</span>
+                </div>
+                <div class="store-pack-price">€5.00</div>
+              </article>
+              <article class="store-pack-card store-pack-featured" data-pack-id="pack-1000" tabindex="0" role="button" aria-pressed="false">
+                <span class="store-pack-badge">Popular</span>
+                <div class="store-pack-credits">
+                  <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                    <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+                  </svg>
+                  <span>1,000</span>
+                </div>
+                <div class="store-pack-bonus">+100 bonus</div>
+                <div class="store-pack-price">€10.00</div>
+              </article>
+              <article class="store-pack-card" data-pack-id="pack-2500" tabindex="0" role="button" aria-pressed="false">
+                <div class="store-pack-credits">
+                  <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                    <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+                  </svg>
+                  <span>2,500</span>
+                </div>
+                <div class="store-pack-bonus">+350 bonus</div>
+                <div class="store-pack-price">€25.00</div>
+              </article>
+              <article class="store-pack-card" data-pack-id="pack-5000" tabindex="0" role="button" aria-pressed="false">
+                <div class="store-pack-credits">
+                  <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                    <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+                  </svg>
+                  <span>5,000</span>
+                </div>
+                <div class="store-pack-bonus">+800 bonus</div>
+                <div class="store-pack-price">€50.00</div>
+              </article>
+            </div>
+
+            <div class="store-custom" id="store-custom">
+              <h3 class="store-section-title">Custom Amount</h3>
+              <div class="store-custom-panel">
+                <div class="store-custom-slider-row">
+                  <span class="store-custom-bound">100</span>
+                  <input type="range" class="store-credits-slider" id="store-credits-slider" min="100" max="10000" step="50" value="750" aria-label="Custom credit amount" />
+                  <span class="store-custom-bound">10,000</span>
+                </div>
+                <div class="store-custom-input-row">
+                  <div class="store-custom-input-wrap">
+                    <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                      <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                      <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+                    </svg>
+                    <input type="number" class="store-credits-input" id="store-credits-input" min="100" max="50000" step="50" value="750" aria-label="Credits to purchase" />
+                    <span class="store-custom-input-unit">credits</span>
+                  </div>
+                  <span class="store-custom-eur" id="store-custom-eur">= €7.50</span>
+                </div>
+                <button type="button" class="btn-store-select-custom" id="store-select-custom">Use custom amount</button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="store-checkout" aria-labelledby="store-checkout-heading">
+            <h3 class="store-checkout-title" id="store-checkout-heading">Checkout</h3>
+            <div class="store-checkout-selection" id="store-checkout-selection">
+              <span class="store-checkout-pack-name" id="store-checkout-name">
+                <svg class="credit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                  <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+                  <path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z" fill="currentColor"/>
+                </svg>
+                <span id="store-checkout-name-text">500 credits</span>
+              </span>
+              <span class="store-checkout-pack-detail" id="store-checkout-detail">No bonus</span>
+            </div>
+            <dl class="store-checkout-lines">
+              <div class="store-checkout-line">
+                <dt>Subtotal</dt>
+                <dd id="store-subtotal">€5.00</dd>
+              </div>
+              <div class="store-checkout-line">
+                <dt>Tax <span class="store-checkout-tax-note">(0%)</span></dt>
+                <dd id="store-tax">€0.00</dd>
+              </div>
+              <div class="store-checkout-line store-checkout-total">
+                <dt>Total</dt>
+                <dd id="store-total">€5.00</dd>
+              </div>
+            </dl>
+            <button type="button" class="btn-store-checkout" id="store-checkout-btn" aria-busy="false">
+              <span class="btn-store-checkout-label">Proceed to Checkout</span>
+              <span class="btn-store-checkout-spinner" aria-hidden="true"></span>
+            </button>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <header class="section-header">
+          <h2>Settings</h2>
+          <p>Configure launcher preferences and allocations</p>
+        </header>
+        <div class="settings-list">
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">RAM Allocation</div>
+              <div class="settings-row-desc">Memory assigned to the game</div>
+            </div>
+            <div style="width: 180px">
+              <div class="slider-label"><span>GB</span><span id="ram-value">4 GB</span></div>
+              <input type="range" id="ram-slider" min="2" max="16" step="1" value="4" />
+            </div>
+          </div>
+          <div class="settings-row settings-row-stack">
+            <div>
+              <div class="settings-row-label">Accent Color</div>
+              <div class="settings-row-desc">Theme color for buttons, highlights, and active navigation</div>
+            </div>
+            <div class="accent-swatch-grid" id="accent-picker" role="radiogroup" aria-label="Accent color"></div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Background Blur</div>
+              <div class="settings-row-desc">Soft blur on the pixel starfield behind panels</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="blur-bg-toggle" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Clear Panels</div>
+              <div class="settings-row-desc">Show only borders and text — no filled backgrounds</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="clear-panels-toggle" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Hardware Acceleration</div>
+              <div class="settings-row-desc">Use GPU for UI rendering</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Start Minimized</div>
+              <div class="settings-row-desc">Launch to system tray</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-account">
+        <header class="section-header">
+          <h2>Account</h2>
+          <p>Manage your login, profile, and linked services</p>
+        </header>
+
+        <div class="account-layout">
+          <aside class="account-sidebar">
+            <div class="account-identity">
+              <div class="skin-avatar account-avatar">
+                <img id="account-avatar" src="https://mc-heads.net/avatar/MHF_Steve/96" alt="Account avatar" />
+              </div>
+              <h3 class="account-username" id="account-username">Guest</h3>
+              <p class="account-email" id="account-email">Not signed in</p>
+              <span class="account-status-badge" id="account-status">Offline</span>
+            </div>
+            <button type="button" class="btn-ms-login" id="account-signin-btn" aria-busy="false">
+              <span class="btn-ms-login-content">
+                <svg class="btn-ms-logo" viewBox="0 0 21 21" aria-hidden="true">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                <span class="btn-ms-label">Sign in with Microsoft</span>
+              </span>
+              <span class="btn-ms-spinner" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="btn-account btn-signout hidden" id="account-signout-btn">Sign out</button>
+          </aside>
+
+          <div class="account-sections">
+            <div class="account-section">
+              <h3 class="account-section-title">Microsoft Account</h3>
+              <p class="account-section-desc">Link your Xbox / Microsoft account to launch Minecraft.</p>
+              <div class="account-row">
+                <span class="account-row-label">Connection</span>
+                <span class="account-row-value muted" id="account-ms-status">Not connected</span>
+              </div>
+            </div>
+
+            <div class="account-section">
+              <h3 class="account-section-title">Minecraft Profile</h3>
+              <p class="account-section-desc">Your in-game username and skin preview.</p>
+              <div class="account-row">
+                <span class="account-row-label">Username</span>
+                <span class="account-row-value muted" id="account-mc-username">—</span>
+              </div>
+              <div class="account-row">
+                <span class="account-row-label">UUID</span>
+                <span class="account-row-value muted account-mono" id="account-mc-uuid">—</span>
+              </div>
+            </div>
+
+            <div class="account-section">
+              <h3 class="account-section-title">Session</h3>
+              <p class="account-section-desc">Authentication tokens and session details.</p>
+              <div class="account-row">
+                <span class="account-row-label">Access token</span>
+                <span class="account-row-value muted">Hidden</span>
+              </div>
+              <div class="account-row">
+                <span class="account-row-label">Expires</span>
+                <span class="account-row-value muted" id="account-session-expires">—</span>
+              </div>
+            </div>
+
+            <div class="account-section account-section-placeholder">
+              <h3 class="account-section-title">More coming soon</h3>
+              <p class="account-section-desc">Cosmetics, capes, and account preferences will live here.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="status-footer">
+      <span>RAM: <strong id="footer-ram">4 GB</strong></span>
+      <span class="status-divider"></span>
+      <span><strong id="footer-version">1.21.1 - Fabric</strong></span>
+    </footer>
+  </div>
+</div>
+
+<div class="mod-detail-overlay" id="mod-detail-overlay" hidden aria-hidden="true">
+  <div class="mod-detail-backdrop" data-mod-detail-close></div>
+  <aside class="mod-detail-panel" role="dialog" aria-labelledby="mod-detail-title" aria-modal="true">
+    <button type="button" class="mod-detail-close" data-mod-detail-close aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5"><path d="M1 1l12 12M13 1L1 13"/></svg>
+    </button>
+    <div class="mod-detail-content" id="mod-detail-content"></div>
+  </aside>
+</div>
+
+<script src="modrinth.js"></script>
+<script src="renderer.js"></script>
+</body>
+</html>
