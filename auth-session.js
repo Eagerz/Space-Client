@@ -78,10 +78,23 @@ function clearSession() {
   }
 }
 
+/**
+ * Return a rendered head URL for UI avatars.
+ * Prefer mc-heads (always HTTPS + cropped head). Raw Mojang texture URLs are often
+ * http://textures.minecraft.net/... which CSP blocks, and they are full skin sheets.
+ */
 function getSkinUrl(profile) {
+  const rawId = profile?.id ? String(profile.id).replace(/-/g, "") : "";
+  if (/^[a-f0-9]{32}$/i.test(rawId)) {
+    return `https://mc-heads.net/avatar/${rawId}/96`;
+  }
+  if (profile?.name) {
+    return `https://mc-heads.net/avatar/${encodeURIComponent(profile.name)}/96`;
+  }
   const activeSkin = profile?.skins?.find((s) => s.state === "ACTIVE") || profile?.skins?.[0];
-  if (activeSkin?.url) return activeSkin.url;
-  if (profile?.id) return `https://mc-heads.net/avatar/${profile.id}/96`;
+  if (activeSkin?.url) {
+    return String(activeSkin.url).replace(/^http:\/\//i, "https://");
+  }
   return "https://mc-heads.net/avatar/MHF_Steve/96";
 }
 

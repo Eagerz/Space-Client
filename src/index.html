@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.modrinth.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://mc-heads.net https://cdn.modrinth.com https://textures.minecraft.net data:; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.modrinth.com https://mc-heads.net http://localhost:8787 https://api.spaceclient.app; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://mc-heads.net https://cdn.modrinth.com https://textures.minecraft.net http://textures.minecraft.net data:; script-src 'self'" />
   <title>Space Client</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,6 +18,7 @@
     <div class="titlebar-player">
       <span class="titlebar-status-dot offline" id="titlebar-status-dot" aria-hidden="true"></span>
       <span class="titlebar-player-name" id="titlebar-player-name">Guest</span>
+      <span class="titlebar-role-badge" id="titlebar-role-badge" hidden></span>
     </div>
     <div class="window-controls">
       <button class="window-btn" id="btn-minimize" type="button" aria-label="Minimize">
@@ -46,8 +47,14 @@
       <button class="nav-btn" data-view="cosmetics" type="button" title="Cosmetics">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.8 5.7 21l2.3-7-6-4.6h7.6z"/></svg>
       </button>
+      <button class="nav-btn" data-view="friends" type="button" title="Friends">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      </button>
       <button class="nav-btn" data-view="presets" type="button" title="Presets">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h10M4 18h16"/><circle cx="18" cy="12" r="2" fill="currentColor"/></svg>
+      </button>
+      <button class="nav-btn" data-view="assistant" type="button" title="AI Assistant">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M5 19l.8 2.2L8 22l-2.2.8L5 25l-.8-2.2L2 22l2.2-.8L5 19z" transform="translate(0 -4)"/><circle cx="19" cy="5" r="1.5" fill="currentColor"/></svg>
       </button>
       <button class="nav-btn" data-view="settings" type="button" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -66,11 +73,110 @@
 
     <main class="main-panel">
       <div class="sky-bg" aria-hidden="true">
-        <div class="sky-scene">
-          <img class="sky-art" src="assets/minecraft-space-bg.png" alt="" draggable="false" />
-          <div class="sky-glints"></div>
-          <div class="sky-depth-vignette"></div>
-        </div>
+        <div class="sky-void"></div>
+        <svg class="sky-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <filter id="moon-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <pattern id="sky-star-tile" width="160" height="140" patternUnits="userSpaceOnUse">
+              <rect width="160" height="140" fill="transparent"/>
+              <rect x="12" y="18" width="2" height="2" fill="#fff" opacity="0.55"/>
+              <rect x="48" y="8" width="2" height="2" fill="#ccc" opacity="0.4"/>
+              <rect x="86" y="34" width="3" height="3" fill="#fff" opacity="0.7"/>
+              <rect x="124" y="16" width="2" height="2" fill="#aaa" opacity="0.45"/>
+              <rect x="28" y="62" width="2" height="2" fill="#ddd" opacity="0.5"/>
+              <rect x="70" y="78" width="2" height="2" fill="#fff" opacity="0.35"/>
+              <rect x="110" y="58" width="3" height="3" fill="#eee" opacity="0.65"/>
+              <rect x="18" y="110" width="2" height="2" fill="#bbb" opacity="0.4"/>
+              <rect x="54" y="98" width="2" height="2" fill="#fff" opacity="0.5"/>
+              <rect x="98" y="120" width="2" height="2" fill="#ccc" opacity="0.35"/>
+              <rect x="140" y="88" width="2" height="2" fill="#fff" opacity="0.55"/>
+            </pattern>
+          </defs>
+
+          <rect width="800" height="600" fill="url(#sky-star-tile)"/>
+
+          <!-- field stars -->
+          <g class="sky-star sky-star-01"><rect x="64" y="48" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-02"><rect x="148" y="92" width="2" height="2" fill="#ddd"/></g>
+          <g class="sky-star sky-star-03"><rect x="220" y="36" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-04"><rect x="310" y="120" width="2" height="2" fill="#ccc"/></g>
+          <g class="sky-star sky-star-05"><rect x="400" y="64" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-06"><rect x="490" y="180" width="2" height="2" fill="#bbb"/></g>
+          <g class="sky-star sky-star-07"><rect x="96" y="210" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-08"><rect x="268" y="250" width="2" height="2" fill="#aaa"/></g>
+          <g class="sky-star sky-star-09"><rect x="440" y="280" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-10"><rect x="580" y="220" width="2" height="2" fill="#ddd"/></g>
+          <g class="sky-star sky-star-11"><rect x="80" y="340" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-12"><rect x="200" y="390" width="2" height="2" fill="#ccc"/></g>
+          <g class="sky-star sky-star-13"><rect x="360" y="360" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-14"><rect x="520" y="420" width="2" height="2" fill="#bbb"/></g>
+          <g class="sky-star sky-star-15"><rect x="660" y="340" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-16"><rect x="140" y="480" width="2" height="2" fill="#ddd"/></g>
+          <g class="sky-star sky-star-17"><rect x="300" y="500" width="3" height="3" fill="#fff"/></g>
+          <g class="sky-star sky-star-18"><rect x="620" y="480" width="2" height="2" fill="#ccc"/></g>
+
+          <!-- bright Minecraft sparkle stars -->
+          <g class="sky-star-hero sky-hero-01" transform="translate(110 80)">
+            <rect x="6" y="0" width="3" height="3" fill="#fff"/>
+            <rect x="0" y="6" width="15" height="3" fill="#fff"/>
+            <rect x="6" y="12" width="3" height="3" fill="#fff"/>
+          </g>
+          <g class="sky-star-hero sky-hero-02" transform="translate(280 150)">
+            <rect x="6" y="0" width="3" height="3" fill="#f4f4f8"/>
+            <rect x="0" y="6" width="15" height="3" fill="#fff"/>
+            <rect x="6" y="12" width="3" height="3" fill="#f4f4f8"/>
+          </g>
+          <g class="sky-star-hero sky-hero-03" transform="translate(500 100)">
+            <rect x="6" y="0" width="3" height="3" fill="#fff"/>
+            <rect x="0" y="6" width="15" height="3" fill="#eee"/>
+            <rect x="6" y="12" width="3" height="3" fill="#fff"/>
+          </g>
+          <g class="sky-star-hero sky-hero-04" transform="translate(180 300)">
+            <rect x="6" y="0" width="3" height="3" fill="#fff"/>
+            <rect x="0" y="6" width="15" height="3" fill="#fff"/>
+            <rect x="6" y="12" width="3" height="3" fill="#fff"/>
+          </g>
+          <g class="sky-star-hero sky-hero-05" transform="translate(620 260)">
+            <rect x="6" y="0" width="3" height="3" fill="#fff"/>
+            <rect x="0" y="6" width="15" height="3" fill="#f8f8fc"/>
+            <rect x="6" y="12" width="3" height="3" fill="#fff"/>
+          </g>
+
+          <!-- glowing Minecraft pixel moon -->
+          <g transform="translate(610 56)">
+            <g class="sky-moon" filter="url(#moon-glow)">
+              <rect x="32" y="8" width="48" height="8" fill="#e8e8f0"/>
+              <rect x="24" y="16" width="64" height="8" fill="#f2f2f8"/>
+              <rect x="16" y="24" width="80" height="8" fill="#fafafc"/>
+              <rect x="16" y="32" width="80" height="8" fill="#ffffff"/>
+              <rect x="16" y="40" width="80" height="8" fill="#f0f0f6"/>
+              <rect x="16" y="48" width="80" height="8" fill="#e4e4ec"/>
+              <rect x="16" y="56" width="80" height="8" fill="#d4d4de"/>
+              <rect x="24" y="64" width="64" height="8" fill="#c0c0ca"/>
+              <rect x="32" y="72" width="48" height="8" fill="#a8a8b4"/>
+              <!-- craters -->
+              <rect x="40" y="28" width="16" height="12" fill="#9a9aa6"/>
+              <rect x="64" y="44" width="12" height="12" fill="#888894"/>
+              <rect x="36" y="52" width="10" height="8" fill="#7a7a86"/>
+              <rect x="72" y="24" width="8" height="8" fill="#b0b0ba"/>
+              <!-- lit rim -->
+              <rect x="28" y="16" width="8" height="8" fill="#ffffff" opacity="0.9"/>
+              <rect x="20" y="24" width="8" height="16" fill="#ffffff" opacity="0.55"/>
+            </g>
+          </g>
+        </svg>
+
+        <div class="sky-shooting sky-shooting-1"></div>
+        <div class="sky-shooting sky-shooting-2"></div>
+        <div class="sky-shooting sky-shooting-3"></div>
+        <div class="sky-vignette"></div>
       </div>
       <div class="sky-overlay" aria-hidden="true"></div>
 
@@ -85,23 +191,13 @@
               </p>
             </div>
             <button class="btn-play" type="button" disabled aria-disabled="true" title="Sign in to play">PLAY</button>
-            <div class="launch-progress" id="launch-progress" hidden>
-              <div class="launch-progress-meta">
-                <span class="launch-progress-label" id="launch-progress-label">Preparing…</span>
-                <span class="launch-progress-pct" id="launch-progress-pct">0%</span>
-              </div>
-              <div class="launch-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="launch-progress-bar">
-                <div class="launch-progress-fill" id="launch-progress-fill"></div>
-              </div>
-              <div class="launch-progress-detail" id="launch-progress-detail"></div>
-            </div>
           </div>
         </div>
         <div class="launch-selectors">
           <select class="launch-select" id="home-version" aria-label="Minecraft version"></select>
           <select class="launch-select" id="home-loader" aria-label="Mod loader">
+            <option value="fabric" selected>Fabric</option>
             <option value="vanilla">Vanilla</option>
-            <option value="fabric">Fabric</option>
           </select>
         </div>
         <section class="home-news" aria-labelledby="home-news-heading">
@@ -168,6 +264,111 @@
         <div class="cosmetics-grid" id="cosmetics-grid"></div>
       </section>
 
+      <section class="view view-fill" id="view-friends">
+        <div class="social-shell">
+          <header class="social-topbar">
+            <div>
+              <h2 class="social-title">Friends</h2>
+              <p class="social-subtitle">Presence, DMs, and quick join</p>
+            </div>
+            <button type="button" class="social-add-btn" id="social-open-add" aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Add Friend
+            </button>
+          </header>
+
+          <div class="social-dashboard">
+            <aside class="social-sidebar glass-panel" aria-label="Friends list">
+              <div class="social-search-wrap">
+                <svg class="social-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                <input type="search" class="social-search" id="social-search" placeholder="Search friends…" autocomplete="off" />
+              </div>
+              <div class="social-friends-scroll" id="social-friends-list" role="list"></div>
+            </aside>
+
+            <section class="social-hub glass-panel" aria-label="Direct messages" id="social-hub">
+              <div class="social-empty" id="social-empty">
+                <div class="social-empty-orb" aria-hidden="true"></div>
+                <h3>Select a friend</h3>
+                <p>Open a chat from the list to message or quick-join their server.</p>
+              </div>
+
+              <div class="social-chat" id="social-chat" hidden>
+                <header class="social-chat-header">
+                  <div class="social-chat-peer">
+                    <div class="social-avatar-wrap social-avatar-lg">
+                      <img id="social-chat-avatar" alt="" width="40" height="40" />
+                      <span class="social-presence" id="social-chat-presence"></span>
+                    </div>
+                    <div>
+                      <div class="social-chat-name-row">
+                        <strong id="social-chat-name">Friend</strong>
+                        <span class="social-space-star" id="social-chat-star" hidden title="Online on Space Client" aria-label="Online on Space Client">✦</span>
+                      </div>
+                      <p class="social-chat-status" id="social-chat-status"></p>
+                    </div>
+                  </div>
+                  <button type="button" class="social-join-btn" id="social-quick-join" hidden>Quick Join Server</button>
+                </header>
+
+                <div class="social-messages" id="social-messages" role="log" aria-live="polite"></div>
+
+                <form class="social-compose" id="social-compose" autocomplete="off">
+                  <input type="text" class="social-compose-input" id="social-compose-input" placeholder="Message…" maxlength="500" />
+                  <button type="submit" class="social-compose-send" aria-label="Send">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                  </button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="social-add-overlay" id="social-add-overlay" hidden>
+          <button type="button" class="social-add-veil" id="social-add-veil" aria-label="Close"></button>
+          <div class="social-add-panel glass-panel" role="dialog" aria-modal="true" aria-labelledby="social-add-title">
+            <h3 id="social-add-title">Add Friend</h3>
+            <p class="social-add-desc">Send a request by Minecraft username.</p>
+            <form id="social-add-form">
+              <label class="social-field-label" for="social-add-username">Minecraft Username</label>
+              <input type="text" id="social-add-username" class="social-add-input" placeholder="Enter Minecraft Username…" maxlength="16" autocomplete="off" spellcheck="false" />
+              <p class="social-add-feedback" id="social-add-feedback" role="status"></p>
+              <button type="submit" class="social-add-submit" id="social-add-submit">
+                <span class="social-add-submit-label">Send Request</span>
+                <span class="social-ripple" aria-hidden="true"></span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="view view-fill" id="view-assistant">
+        <div class="assistant-shell">
+          <header class="assistant-topbar">
+            <div>
+              <h2 class="social-title">Space AI</h2>
+              <p class="social-subtitle">Launch tips, mods, and Deep Space help</p>
+            </div>
+            <button type="button" class="assistant-clear-btn" id="assistant-clear">Clear chat</button>
+          </header>
+
+          <div class="assistant-panel glass-panel">
+            <div class="assistant-messages" id="assistant-messages" role="log" aria-live="polite"></div>
+            <form class="assistant-compose" id="assistant-compose" autocomplete="off">
+              <input type="text" class="social-compose-input" id="assistant-input" placeholder="Ask Space AI…" maxlength="800" />
+              <button type="submit" class="social-compose-send" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </form>
+            <div class="assistant-suggestions" id="assistant-suggestions" aria-label="Suggestions">
+              <button type="button" class="assistant-chip" data-prompt="How do I equip a cape?">Equip a cape</button>
+              <button type="button" class="assistant-chip" data-prompt="Best FPS settings for Hypixel?">FPS settings</button>
+              <button type="button" class="assistant-chip" data-prompt="What is Space+?">What is Space+?</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-presets">
         <header class="section-header">
           <h2>Presets</h2>
@@ -206,6 +407,7 @@
 
             <div class="spaceplus-cta-block" id="spaceplus-upgrade-block">
               <button type="button" class="btn-spaceplus-upgrade" id="spaceplus-upgrade-btn">Upgrade to Space+</button>
+              <p class="spaceplus-checkout-error" id="spaceplus-checkout-error" hidden role="alert"></p>
             </div>
 
             <div class="spaceplus-cta-block spaceplus-subscribed" id="spaceplus-subscribed-block" hidden>
@@ -266,7 +468,7 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
                 </div>
                 <h4>Exclusive Cosmetics</h4>
-                <p>5+ premium launcher themes and profile frames.</p>
+                <p>Member-only animated capes: Plus Sigil, Member Orbit, and Priority Flare.</p>
               </article>
               <article class="spaceplus-perk-card">
                 <div class="spaceplus-perk-icon" aria-hidden="true">
@@ -466,6 +668,7 @@
               <span class="btn-store-checkout-label">Proceed to Checkout</span>
               <span class="btn-store-checkout-spinner" aria-hidden="true"></span>
             </button>
+            <p class="store-checkout-error" id="store-checkout-error" hidden role="alert"></p>
           </aside>
         </div>
       </section>
@@ -509,7 +712,7 @@
               <div class="settings-row-desc">Show only borders and text — no filled backgrounds</div>
             </div>
             <label class="toggle">
-              <input type="checkbox" id="clear-panels-toggle" />
+              <input type="checkbox" id="clear-panels-toggle" checked />
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>
@@ -533,7 +736,15 @@
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Launcher Updates</div>
+              <div class="settings-row-desc">Check GitHub Releases for a newer Space Client build</div>
+            </div>
+            <button type="button" class="btn-check-updates" id="btn-check-updates">Check for updates</button>
+          </div>
         </div>
+        <p class="settings-update-status" id="settings-update-status" hidden role="status"></p>
       </section>
 
       <section class="view" id="view-account">
@@ -546,9 +757,12 @@
           <aside class="account-sidebar">
             <div class="account-identity">
               <div class="skin-avatar account-avatar">
-                <img id="account-avatar" src="https://mc-heads.net/avatar/MHF_Steve/96" alt="Account avatar" />
+                <img id="account-avatar" src="https://mc-heads.net/avatar/MHF_Steve/96" alt="" width="96" height="96" decoding="async" referrerpolicy="no-referrer" />
               </div>
-              <h3 class="account-username" id="account-username">Guest</h3>
+              <div class="account-name-row">
+                <h3 class="account-username" id="account-username">Guest</h3>
+                <span class="account-role-badge" id="account-role-badge" hidden></span>
+              </div>
               <p class="account-email" id="account-email">Not signed in</p>
               <span class="account-status-badge" id="account-status">Offline</span>
             </div>
@@ -588,6 +802,14 @@
                 <span class="account-row-label">UUID</span>
                 <span class="account-row-value muted account-mono" id="account-mc-uuid">—</span>
               </div>
+              <div class="account-row">
+                <span class="account-row-label">Role</span>
+                <span class="account-row-value muted" id="account-role-value">—</span>
+              </div>
+              <div class="account-row">
+                <span class="account-row-label">Space+</span>
+                <span class="account-row-value muted" id="account-spaceplus-value">—</span>
+              </div>
             </div>
 
             <div class="account-section">
@@ -604,8 +826,8 @@
             </div>
 
             <div class="account-section account-section-placeholder">
-              <h3 class="account-section-title">More coming soon</h3>
-              <p class="account-section-desc">Cosmetics, capes, and account preferences will live here.</p>
+              <h3 class="account-section-title">Profile perks</h3>
+              <p class="account-section-desc">Owner unlocks every cosmetic. Space+ members get exclusive member capes.</p>
             </div>
           </div>
         </div>
@@ -631,7 +853,101 @@
   </aside>
 </div>
 
+<div class="cosmetic-detail-overlay" id="cosmetic-detail-overlay" hidden aria-hidden="true">
+  <div class="cosmetic-detail-backdrop" data-cosmetic-detail-close></div>
+  <aside class="cosmetic-detail-panel" role="dialog" aria-labelledby="cosmetic-detail-title" aria-modal="true">
+    <button type="button" class="cosmetic-detail-close" data-cosmetic-detail-close aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5"><path d="M1 1l12 12M13 1L1 13"/></svg>
+    </button>
+    <div class="cosmetic-detail-content" id="cosmetic-detail-content"></div>
+  </aside>
+</div>
+
+<div class="launch-overlay" id="launch-overlay" hidden aria-hidden="true">
+  <div class="launch-overlay-veil" aria-hidden="true"></div>
+  <div class="launch-overlay-card" role="dialog" aria-modal="true" aria-labelledby="launch-progress-label">
+    <div class="launch-overlay-top">
+      <p class="launch-overlay-kicker">Space Client</p>
+      <button type="button" class="launch-overlay-dismiss" id="launch-overlay-dismiss" aria-label="Close launch overlay">
+        <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4"><path d="M1 1l10 10M11 1L1 11"/></svg>
+      </button>
+    </div>
+    <div class="launch-overlay-meta">
+      <h2 class="launch-progress-label" id="launch-progress-label">Preparing…</h2>
+      <span class="launch-progress-pct" id="launch-progress-pct">0%</span>
+    </div>
+    <div class="launch-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="launch-progress-bar">
+      <div class="launch-progress-fill" id="launch-progress-fill"></div>
+    </div>
+    <p class="launch-progress-detail" id="launch-progress-detail"></p>
+    <div class="launch-crash-tips" id="launch-crash-tips" hidden>
+      <h3 class="launch-crash-tips-title">Possible fixes</h3>
+      <ul class="launch-crash-tips-list" id="launch-crash-tips-list"></ul>
+    </div>
+    <div class="launch-console" id="launch-console" aria-label="Game logs">
+      <div class="launch-console-header">
+        <span class="launch-console-title">Game Logs</span>
+        <div class="launch-console-actions">
+          <button type="button" class="launch-console-btn" id="launch-console-copy" title="Copy logs">Copy</button>
+          <button type="button" class="launch-console-btn" id="launch-console-clear" title="Clear logs">Clear</button>
+        </div>
+      </div>
+      <div class="launch-console-body" id="launch-console-body" role="log" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
+<div class="checkout-overlay" id="checkout-overlay" hidden aria-hidden="true">
+  <div class="checkout-overlay-veil" aria-hidden="true"></div>
+  <div class="checkout-overlay-card" role="status" aria-live="polite" aria-labelledby="checkout-overlay-title">
+    <div class="checkout-spinner" aria-hidden="true"></div>
+    <p class="checkout-overlay-title" id="checkout-overlay-title">Redirecting to secure browser checkout...</p>
+    <p class="checkout-overlay-sub">Stripe Checkout opens in your system browser</p>
+  </div>
+</div>
+
+<aside class="update-drawer" id="update-drawer" hidden aria-hidden="true" aria-live="polite">
+  <button type="button" class="update-drawer-dismiss" id="update-drawer-dismiss" aria-label="Dismiss update">
+    <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4"><path d="M1 1l10 10M11 1L1 11"/></svg>
+  </button>
+
+  <div class="update-drawer-state" data-update-state="available" id="update-state-available" hidden>
+    <p class="update-drawer-kicker">Space Client</p>
+    <h2 class="update-drawer-title" id="update-available-title">New Update Available!</h2>
+    <p class="update-drawer-sub" id="update-available-sub">A newer launcher build is ready to download.</p>
+    <button type="button" class="btn-update-primary" id="update-download-btn">Download Now</button>
+  </div>
+
+  <div class="update-drawer-state" data-update-state="downloading" id="update-state-downloading" hidden>
+    <p class="update-drawer-kicker">Downloading</p>
+    <div class="update-drawer-meta">
+      <h2 class="update-drawer-title">Downloading update…</h2>
+      <span class="update-progress-pct" id="update-progress-pct">0%</span>
+    </div>
+    <div class="update-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="update-progress-bar">
+      <div class="update-progress-fill" id="update-progress-fill"></div>
+    </div>
+    <p class="update-progress-detail" id="update-progress-detail"></p>
+  </div>
+
+  <div class="update-drawer-state" data-update-state="ready" id="update-state-ready" hidden>
+    <p class="update-drawer-kicker">Ready</p>
+    <h2 class="update-drawer-title">Update ready to install!</h2>
+    <p class="update-drawer-sub">Relaunch to apply the new Space Client build.</p>
+    <button type="button" class="btn-update-primary" id="update-install-btn">Relaunch &amp; Apply</button>
+  </div>
+
+  <div class="update-drawer-state" data-update-state="error" id="update-state-error" hidden>
+    <p class="update-drawer-kicker">Update failed</p>
+    <h2 class="update-drawer-title">Couldn't download update</h2>
+    <p class="update-drawer-sub" id="update-error-message">Something went wrong. Try again later.</p>
+    <button type="button" class="btn-update-secondary" id="update-retry-btn">Try again</button>
+  </div>
+</aside>
+
 <script src="modrinth.js"></script>
+<script src="social.js"></script>
+<script src="assistant.js"></script>
 <script src="renderer.js"></script>
 </body>
 </html>

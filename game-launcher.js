@@ -1,12 +1,32 @@
 const { app } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const childProcess = require("child_process");
+const { pathToFileURL } = require("url");
 const { Launch } = require("minecraft-java-core");
 const authSession = require("./auth-session");
+const modInjection = require("./mod-injection");
 
 /** @type {import("minecraft-java-core").default | null} */
 let activeLauncher = null;
 let isLaunching = false;
 let gameRunning = false;
+
+/**
+ * minecraft-java-core spawns Java without windowsHide. On Windows that can pop a
+ * CMD console. Keep java.exe (not javaw) so stdout/stderr still pipe into our
+ * Game Logs panel; only hide the OS console window.
+ */
+const originalSpawn = childProcess.spawn;
+childProcess.spawn = function spaceClientSpawn(command, args, options) {
+  const opts = { ...(options || {}) };
+  opts.windowsHide = true;
+  // Ensure we capture game output for the in-app logs panel.
+  if (!opts.stdio) {
+    opts.stdio = ["ignore", "pipe", "pipe"];
+  }
+  return originalSpawn.call(this, command, args, opts);
+};
 
 function getMinecraftPath() {
   return path.join(app.getPath("userData"), "SpaceClient", ".minecraft");
@@ -54,9 +74,11 @@ function normalizeVersion(version) {
 }
 
 function normalizeLoader(loader) {
-  const value = String(loader || "vanilla").toLowerCase();
+  // Space Client features require Fabric; default to fabric when unset/unknown.
+  const value = String(loader || "fabric").toLowerCase();
+  if (value === "vanilla" || value === "none" || value === "off") return "vanilla";
   if (value === "fabric") return "fabric";
-  return "vanilla";
+  return "fabric";
 }
 
 function send(win, channel, payload) {
@@ -77,8 +99,94 @@ function hideWindow(win) {
 }
 
 /**
+ * Resolve a cape texture PNG from the Electron app assets folder.
+ * @param {string} capeId
+ * @returns {string | null}
+ */
+function resolveCapeTexturePath(capeId) {
+  if (!capeId || typeof capeId !== "string") return null;
+  const safe = capeId.replace(/[^a-z0-9\-]/gi, "");
+  if (!safe) return null;
+  const fileName = `${safe}-texture.png`;
+  const candidates = [
+    path.join(__dirname, "src", "assets", "capes", fileName),
+    path.join(app.getAppPath(), "src", "assets", "capes", fileName),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Stage equipped cape into .minecraft/config/space-client/cosmetics for the Fabric core mod.
+ * @param {string} gamePath
+ * @param {string | null | undefined} capeId
+ * @param {(line: string) => void} log
+ */
+function stageEquippedCosmetics(gamePath, capeId, log) {
+  const cosmeticsDir = path.join(gamePath, "config", "space-client", "cosmetics");
+  fs.mkdirSync(cosmeticsDir, { recursive: true });
+  const capePng = path.join(cosmeticsDir, "cape.png");
+  const manifestPath = path.join(cosmeticsDir, "equipped.json");
+  const manifest = {
+    cape: null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (capeId) {
+    const src = resolveCapeTexturePath(capeId);
+    if (src) {
+      fs.copyFileSync(src, capePng);
+      manifest.cape = capeId;
+      log(`Staged cape texture: ${capeId}`);
+    } else {
+      try {
+        fs.unlinkSync(capePng);
+      } catch {
+        // ignore
+      }
+      log(`Cape texture missing for "${capeId}" — unequipped in-game.`);
+    }
+  } else {
+    try {
+      fs.unlinkSync(capePng);
+    } catch {
+      // ignore
+    }
+    log("No cape equipped — cleared in-game cosmetics stage.");
+  }
+
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
+/**
+ * Per-file download events jump 0→100 repeatedly. Floor percent against the last
+ * value within a phase so the UI never goes backwards mid-phase.
+ */
+function createProgressTracker() {
+  let lastPercent = 0;
+  let lastPhase = "starting";
+
+  return function track(phase, percent) {
+    if (phase && phase !== lastPhase) {
+      // Intentional phase change — do not drop below prior peak unless reset.
+      if (phase === "starting") lastPercent = 0;
+      lastPhase = phase;
+    }
+    if (!Number.isFinite(percent)) return null;
+    const next = Math.max(0, Math.min(100, Math.round(percent)));
+    if (next < lastPercent && phase === lastPhase) {
+      return lastPercent;
+    }
+    lastPercent = Math.max(lastPercent, next);
+    return lastPercent;
+  };
+}
+
+/**
  * @param {Electron.BrowserWindow} win
- * @param {{ version?: string, loader?: string, memoryGb?: number }} options
+ * @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null }} options
  */
 async function launchGame(win, options = {}) {
   if (isLaunching || gameRunning) {
@@ -99,41 +207,47 @@ async function launchGame(win, options = {}) {
   const memoryGb = clampMemoryGb(options.memoryGb);
   const memoryMinGb = Math.max(1, Math.min(memoryGb, Math.floor(memoryGb / 2) || 2));
   const gamePath = getMinecraftPath();
+  const trackPercent = createProgressTracker();
 
   isLaunching = true;
   let hiddenForGame = false;
+  let sawGameCrash = false;
 
   send(win, "launch:progress", {
     phase: "starting",
-    percent: 0,
+    percent: trackPercent("starting", 0),
     label: "Preparing launch…",
     detail: version,
   });
+  send(win, "launch:log", { line: `Preparing launch for ${version} (${loader})…` });
 
   try {
+    stageEquippedCosmetics(gamePath, options.equippedCape, (line) => {
+      send(win, "launch:log", { line });
+    });
+
     const launcher = new Launch();
     activeLauncher = launcher;
 
     const onProgress = (downloaded, total, element) => {
       const tot = Number(total) || 0;
       const dl = Number(downloaded) || 0;
-      const percent = tot > 0 ? Math.min(100, Math.round((dl / tot) * 100)) : 0;
+      const raw = tot > 0 ? (dl / tot) * 100 : null;
+      const percent = trackPercent("download", raw);
       const file = typeof element === "string" ? element : "files";
       send(win, "launch:progress", {
         phase: "download",
         percent,
         label: `Downloading ${file}`,
-        detail: `${percent}%`,
-        speed: null,
+        detail: Number.isFinite(percent) ? `${percent}%` : undefined,
+        speed: undefined,
       });
     };
 
     const onSpeed = (speed) => {
+      // Speed-only updates must NOT wipe percent / label in the UI.
       send(win, "launch:progress", {
         phase: "download",
-        percent: null,
-        label: null,
-        detail: null,
         speed: Number(speed) || 0,
       });
     };
@@ -141,56 +255,81 @@ async function launchGame(win, options = {}) {
     const onCheck = (progress, size, element) => {
       const tot = Number(size) || 0;
       const cur = Number(progress) || 0;
-      const percent = tot > 0 ? Math.min(100, Math.round((cur / tot) * 100)) : 0;
+      const raw = tot > 0 ? (cur / tot) * 100 : null;
+      const percent = trackPercent("verify", raw);
       send(win, "launch:progress", {
         phase: "verify",
         percent,
         label: `Verifying ${typeof element === "string" ? element : "files"}`,
-        detail: `${percent}%`,
+        detail: Number.isFinite(percent) ? `${percent}%` : undefined,
       });
     };
 
     const onExtract = (file) => {
       send(win, "launch:progress", {
         phase: "extract",
-        percent: null,
         label: "Extracting",
         detail: typeof file === "string" ? file : "resources",
       });
+      if (typeof file === "string") {
+        send(win, "launch:log", { line: `Extracting ${file}` });
+      }
     };
 
     const onPatch = (patch) => {
       send(win, "launch:progress", {
         phase: "patch",
-        percent: null,
         label: "Applying loader patch",
         detail: typeof patch === "string" ? patch : "…",
       });
+      if (typeof patch === "string") {
+        send(win, "launch:log", { line: `Patch: ${patch}` });
+      }
     };
 
     const onData = (line) => {
-      const text = String(line || "");
+      const text = String(line || "").replace(/\r/g, "");
+      const chunks = text.split("\n").filter((part) => part.trim().length > 0);
+      for (const chunk of chunks) {
+        send(win, "launch:log", { line: chunk });
+        if (
+          /Minecraft has crashed|BootstrapMethodError|InvalidInjectionException|Mixin transformation .* failed|Critical injection failure/i.test(
+            chunk
+          )
+        ) {
+          sawGameCrash = true;
+        }
+      }
+
+      // Mark game as running once JVM dumps launch args — but keep the launcher
+      // visible so Game Logs stay readable (Lunar / Feather style).
       if (!hiddenForGame && /Launching with arguments/i.test(text)) {
         hiddenForGame = true;
         gameRunning = true;
         isLaunching = false;
         send(win, "launch:progress", {
           phase: "launching",
-          percent: 100,
-          label: "Starting Minecraft…",
-          detail: version,
+          percent: trackPercent("launching", 100),
+          label: "Minecraft is booting…",
+          detail: "Watch Game Logs below",
         });
         send(win, "launch:started", { version, loader });
-        hideWindow(win);
       }
     };
 
-    const onClose = () => {
+    const onClose = (code) => {
       cleanupListeners();
       activeLauncher = null;
       gameRunning = false;
       isLaunching = false;
-      send(win, "launch:closed", {});
+      const exitCode = typeof code === "number" ? code : null;
+      const crashed = sawGameCrash || (exitCode !== null && exitCode !== 0);
+      send(win, "launch:log", {
+        line: crashed
+          ? `Minecraft exited${exitCode !== null ? ` with code ${exitCode}` : ""} (crash detected).`
+          : "Minecraft closed.",
+      });
+      send(win, "launch:closed", { code: exitCode, crashed });
       restoreWindow(win);
     };
 
@@ -206,6 +345,7 @@ async function launchGame(win, options = {}) {
         err?.message ||
         "Failed to launch Minecraft.";
 
+      send(win, "launch:log", { line: `Error: ${message}` });
       send(win, "launch:error", { error: String(message) });
       restoreWindow(win);
     };
@@ -234,12 +374,15 @@ async function launchGame(win, options = {}) {
       path: gamePath,
       authenticator,
       version,
-      detached: true,
-      timeout: 15000,
+      // Keep attached so stdout/stderr pipe into our in-app console (and avoid a new Win console group).
+      detached: false,
+      // Fabric install + Java can exceed 15s on first launch.
+      timeout: 60000,
       downloadFileMultiple: 5,
       verify: false,
       ignored: ["config", "logs", "resourcepacks", "options.txt", "optionsof.txt", "saves"],
       loader: {
+        path: "./loader",
         enable: loader === "fabric",
         type: loader === "fabric" ? "fabric" : null,
         build: "latest",
@@ -253,11 +396,52 @@ async function launchGame(win, options = {}) {
         version: null,
         type: "jre",
       },
+      JVM_ARGS: [],
     };
+
+    // Windows: bare `C:/...xml` is treated as an invalid URL protocol by Log4j
+    // ("unknown protocol: c"). Prefer a proper file:// URI when the config exists.
+    const logConfigPath = path.join(gamePath, "assets", "log_configs", "client-1.12.xml");
+    if (fs.existsSync(logConfigPath)) {
+      launchOptions.JVM_ARGS.push(`-Dlog4j.configurationFile=${pathToFileURL(logConfigPath).href}`);
+    }
+
+    if (loader === "fabric") {
+      send(win, "launch:progress", {
+        phase: "patch",
+        label: "Preparing Fabric mods…",
+        detail: version,
+      });
+      const mod = await modInjection.prepareFabricInjection({ mcVersion: version });
+      for (const warning of mod.warnings || []) {
+        send(win, "launch:log", { line: warning });
+      }
+      if (mod.ok && mod.jvmArg) {
+        launchOptions.JVM_ARGS.push(mod.jvmArg);
+        send(win, "launch:log", {
+          line: "Fabric Loader enabled — injecting Space Client core + Fabric API from natives.",
+        });
+        if (mod.jarPath) {
+          send(win, "launch:log", { line: `Core mod: ${mod.jarPath}` });
+        }
+        if (mod.fabricApiPath) {
+          send(win, "launch:log", { line: `Fabric API: ${mod.fabricApiPath}` });
+        }
+      } else {
+        const message =
+          mod.error ||
+          "Space Client core / Fabric API could not be prepared for injection.";
+        send(win, "launch:log", { line: `Error: ${message}` });
+        send(win, "launch:error", { error: message });
+        isLaunching = false;
+        restoreWindow(win);
+        return { success: false, error: message };
+      }
+    }
 
     send(win, "launch:progress", {
       phase: "download",
-      percent: 0,
+      percent: trackPercent("download", 0),
       label: "Checking game files…",
       detail: version,
     });
@@ -272,6 +456,7 @@ async function launchGame(win, options = {}) {
     gameRunning = false;
     activeLauncher = null;
     const message = err?.message || String(err);
+    send(win, "launch:log", { line: `Error: ${message}` });
     send(win, "launch:error", { error: message });
     restoreWindow(win);
     return { success: false, error: message };

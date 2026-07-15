@@ -1,0 +1,312 @@
+[
+  {
+    "id": "event-horizon",
+    "category": "capes",
+    "name": "Event Horizon",
+    "desc": "A matte-black singularity with silver–violet light lazily lensing around its edge.",
+    "rarity": "legendary",
+    "tags": [
+      "Animated",
+      "Legendary",
+      "Exclusive"
+    ],
+    "price": 850,
+    "exclusive": null,
+    "previewImage": "assets/capes/event-horizon-preview.png",
+    "sheetImage": "assets/capes/event-horizon-sheet.png",
+    "textureImage": "assets/capes/event-horizon-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "hyperspace",
+    "category": "capes",
+    "name": "Hyperspace",
+    "desc": "Vertical star streaks whip past as if you are forever jumping to warp.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Motion"
+    ],
+    "price": 550,
+    "exclusive": null,
+    "previewImage": "assets/capes/hyperspace-preview.png",
+    "sheetImage": "assets/capes/hyperspace-sheet.png",
+    "textureImage": "assets/capes/hyperspace-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "starfall",
+    "category": "capes",
+    "name": "Starfall",
+    "desc": "Quiet charcoal stars, then a sharp white comet cuts across and dissolves.",
+    "rarity": "rare",
+    "tags": [
+      "Animated",
+      "Rare"
+    ],
+    "price": 400,
+    "exclusive": null,
+    "previewImage": "assets/capes/starfall-preview.png",
+    "sheetImage": "assets/capes/starfall-sheet.png",
+    "textureImage": "assets/capes/starfall-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "solar-eclipse",
+    "category": "capes",
+    "name": "Solar Eclipse",
+    "desc": "A black lunar disc crowned by a flickering white corona and soft flare wisps.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Solar"
+    ],
+    "price": 600,
+    "exclusive": null,
+    "previewImage": "assets/capes/solar-eclipse-preview.png",
+    "sheetImage": "assets/capes/solar-eclipse-sheet.png",
+    "textureImage": "assets/capes/solar-eclipse-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "liquid-nebula",
+    "category": "capes",
+    "name": "Liquid Nebula",
+    "desc": "Obsidian canvas with indigo dust clouds drifting like silk lava.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Nebula"
+    ],
+    "price": 550,
+    "exclusive": null,
+    "previewImage": "assets/capes/liquid-nebula-preview.png",
+    "sheetImage": "assets/capes/liquid-nebula-sheet.png",
+    "textureImage": "assets/capes/liquid-nebula-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "chronos",
+    "category": "capes",
+    "name": "Chronos",
+    "desc": "Concentric orbital rings and pixel planets circling a tiny white sun.",
+    "rarity": "legendary",
+    "tags": [
+      "Animated",
+      "Legendary"
+    ],
+    "price": 800,
+    "exclusive": null,
+    "previewImage": "assets/capes/chronos-preview.png",
+    "sheetImage": "assets/capes/chronos-sheet.png",
+    "textureImage": "assets/capes/chronos-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "lunar-cycle",
+    "category": "capes",
+    "name": "Lunar Cycle",
+    "desc": "A single moon waxes and wanes through a clean phase loop.",
+    "rarity": "rare",
+    "tags": [
+      "Animated",
+      "Moon"
+    ],
+    "price": 380,
+    "exclusive": null,
+    "previewImage": "assets/capes/lunar-cycle-preview.png",
+    "sheetImage": "assets/capes/lunar-cycle-sheet.png",
+    "textureImage": "assets/capes/lunar-cycle-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "cosmic-pulse",
+    "category": "capes",
+    "name": "Cosmic Pulse",
+    "desc": "A quiet digital grid; ice-white nodes cascade from shoulders to hem.",
+    "rarity": "uncommon",
+    "tags": [
+      "Animated",
+      "Grid"
+    ],
+    "price": 300,
+    "exclusive": null,
+    "previewImage": "assets/capes/cosmic-pulse-preview.png",
+    "sheetImage": "assets/capes/cosmic-pulse-sheet.png",
+    "textureImage": "assets/capes/cosmic-pulse-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "aurora-borealis",
+    "category": "capes",
+    "name": "Aurora Borealis",
+    "desc": "Ethereal cyan curtains ripple like silk across a deep night sky.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Aurora"
+    ],
+    "price": 580,
+    "exclusive": null,
+    "previewImage": "assets/capes/aurora-borealis-preview.png",
+    "sheetImage": "assets/capes/aurora-borealis-sheet.png",
+    "textureImage": "assets/capes/aurora-borealis-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "orion-shimmer",
+    "category": "capes",
+    "name": "Orion's Shimmer",
+    "desc": "A mapped constellation shimmering independently along faint silver links.",
+    "rarity": "rare",
+    "tags": [
+      "Animated",
+      "Constellation"
+    ],
+    "price": 420,
+    "exclusive": null,
+    "previewImage": "assets/capes/orion-shimmer-preview.png",
+    "sheetImage": "assets/capes/orion-shimmer-sheet.png",
+    "textureImage": "assets/capes/orion-shimmer-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "glitch-void",
+    "category": "capes",
+    "name": "Glitch Void",
+    "desc": "Sleek black cloth that randomly slices, shifts, and flashes neon static.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Glitch"
+    ],
+    "price": 620,
+    "exclusive": null,
+    "previewImage": "assets/capes/glitch-void-preview.png",
+    "sheetImage": "assets/capes/glitch-void-sheet.png",
+    "textureImage": "assets/capes/glitch-void-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "cosmic-dust",
+    "category": "capes",
+    "name": "Cosmic Dust",
+    "desc": "The hem dissolves into rising silver sparks that fade into the void.",
+    "rarity": "uncommon",
+    "tags": [
+      "Animated",
+      "Particles"
+    ],
+    "price": 280,
+    "exclusive": null,
+    "previewImage": "assets/capes/cosmic-dust-preview.png",
+    "sheetImage": "assets/capes/cosmic-dust-sheet.png",
+    "textureImage": "assets/capes/cosmic-dust-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "supernova-burst",
+    "category": "capes",
+    "name": "Supernova Burst",
+    "desc": "A quiet field, then a white flash blooms into a fading stardust ring.",
+    "rarity": "legendary",
+    "tags": [
+      "Animated",
+      "Legendary"
+    ],
+    "price": 750,
+    "exclusive": null,
+    "previewImage": "assets/capes/supernova-burst-preview.png",
+    "sheetImage": "assets/capes/supernova-burst-sheet.png",
+    "textureImage": "assets/capes/supernova-burst-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "satellite-signal",
+    "category": "capes",
+    "name": "Satellite Signal",
+    "desc": "A retro vector satellite sends crisp concentric waves into the dark.",
+    "rarity": "rare",
+    "tags": [
+      "Animated",
+      "Retro"
+    ],
+    "price": 360,
+    "exclusive": null,
+    "previewImage": "assets/capes/satellite-signal-preview.png",
+    "sheetImage": "assets/capes/satellite-signal-sheet.png",
+    "textureImage": "assets/capes/satellite-signal-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "dark-matter-waves",
+    "category": "capes",
+    "name": "Dark Matter Waves",
+    "desc": "Satin dark-grey cloth disturbed by a continuous hypnotic ripple.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Subtle"
+    ],
+    "price": 500,
+    "exclusive": null,
+    "previewImage": "assets/capes/dark-matter-waves-preview.png",
+    "sheetImage": "assets/capes/dark-matter-waves-sheet.png",
+    "textureImage": "assets/capes/dark-matter-waves-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "plus-sigil",
+    "category": "capes",
+    "name": "Plus Sigil",
+    "desc": "Space+ exclusive — a silver plus mark that slowly blooms and retracts in the dark.",
+    "rarity": "legendary",
+    "tags": [
+      "Animated",
+      "Space+",
+      "Exclusive"
+    ],
+    "price": null,
+    "exclusive": "spaceplus",
+    "previewImage": "assets/capes/plus-sigil-preview.png",
+    "sheetImage": "assets/capes/plus-sigil-sheet.png",
+    "textureImage": "assets/capes/plus-sigil-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "member-orbit",
+    "category": "capes",
+    "name": "Member Orbit",
+    "desc": "Space+ exclusive — dual orbital rings with a soft silver pulse reserved for members.",
+    "rarity": "epic",
+    "tags": [
+      "Animated",
+      "Space+",
+      "Exclusive"
+    ],
+    "price": null,
+    "exclusive": "spaceplus",
+    "previewImage": "assets/capes/member-orbit-preview.png",
+    "sheetImage": "assets/capes/member-orbit-sheet.png",
+    "textureImage": "assets/capes/member-orbit-texture.png",
+    "frameCount": 24
+  },
+  {
+    "id": "priority-flare",
+    "category": "capes",
+    "name": "Priority Flare",
+    "desc": "Space+ exclusive — a quiet field then a crisp priority flare that echoes down the cape.",
+    "rarity": "legendary",
+    "tags": [
+      "Animated",
+      "Space+",
+      "Exclusive"
+    ],
+    "price": null,
+    "exclusive": "spaceplus",
+    "previewImage": "assets/capes/priority-flare-preview.png",
+    "sheetImage": "assets/capes/priority-flare-sheet.png",
+    "textureImage": "assets/capes/priority-flare-texture.png",
+    "frameCount": 24
+  }
+]

@@ -1,0 +1,90 @@
+# Tag-triggered multi-platform Electron release for Space Client.
+# Push a version tag (e.g. v1.0.1) to build installers + updater metadata
+# and attach them to the matching GitHub Release (electron-updater / website).
+#
+# Signing is optional: builds succeed unsigned when cert secrets are absent.
+# Set CSC_IDENTITY_AUTO_DISCOVERY=false so macOS runners do not hunt for a local identity.
+
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Create the Release once so matrix jobs attach assets without racing.
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Space Client ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+
+  release:
+    needs: prepare-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync package version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "Tag must look like v1.2.3 (got ${GITHUB_REF_NAME})"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "Building version $VERSION from tag ${GITHUB_REF_NAME}"
+
+      - name: Build & publish (${{ matrix.platform }})
+        env:
+          # GitHub Releases upload (electron-builder publish provider)
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Do not auto-pick a macOS identity from the runner keychain
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # Windows Authenticode (optional)
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # macOS Developer ID Application (optional)
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Notarization (optional; used when CSC_* are present)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --${{ matrix.platform }} --publish always

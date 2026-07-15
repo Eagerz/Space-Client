@@ -3,3 +3,7 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# Stripe payments backend secrets & player DB
+backend/.env
+backend/data/

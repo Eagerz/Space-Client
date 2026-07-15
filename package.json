@@ -1,6 +1,6 @@
 {
   "name": "space-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Space Client — premium Minecraft companion launcher",
   "main": "main.js",
   "author": "Space Client",
@@ -17,10 +17,15 @@
     "postinstall": "node scripts/postinstall.js",
     "start": "electron .",
     "dev": "electron .",
+    "payments:install": "npm install --prefix backend",
+    "payments:server": "npm start --prefix backend",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux"
+    "build:linux": "electron-builder --linux",
+    "build:mods": "node scripts/build-space-client-core.js",
+    "generate:capes": "node scripts/generate-cape-assets.js",
+    "publish:update": "node scripts/publish-app-update.js"
   },
   "devDependencies": {
     "electron": "^35.7.5",
@@ -32,11 +37,15 @@
     "directories": {
       "output": "dist"
     },
+    "electronDist": "node_modules/electron/dist",
     "files": [
       "main.js",
       "preload.js",
       "auth-session.js",
+      "auto-updater.js",
       "game-launcher.js",
+      "mod-injection.js",
+      "payments-config.js",
       "src/**/*"
     ],
     "publish": [
@@ -50,24 +59,30 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "Space-Client-Setup-${version}.${ext}"
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
-      "category": "public.app-category.games"
+      "category": "public.app-category.games",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "linux": {
       "target": [
         "AppImage"
       ],
-      "category": "Game"
+      "category": "Game",
+      "artifactName": "${productName}-${version}.${ext}"
     }
   },
   "dependencies": {
     "axios": "^1.18.1",
     "electron-mc-auth": "^0.2.2-1",
+    "electron-updater": "^6.8.9",
     "minecraft-java-core": "^4.2.8",
     "tslib": "^2.8.1"
   }

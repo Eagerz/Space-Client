@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Client — Friends & Space AI (Demo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    html, body { height: 100%; }
+    .demo-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #030306;
+    }
+    .demo-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--sc-border);
+      background: var(--sc-surface);
+    }
+    .demo-tab {
+      border: 1px solid var(--sc-border);
+      background: transparent;
+      color: var(--sc-text-muted);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .demo-tab.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.28);
+    }
+    .demo-main {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      padding: 18px 20px;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .demo-starfield {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image:
+        radial-gradient(1px 1px at 12% 18%, #fff, transparent),
+        radial-gradient(1px 1px at 28% 62%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 44% 30%, #f8f8fc, transparent),
+        radial-gradient(1px 1px at 61% 78%, #fff, transparent),
+        radial-gradient(1px 1px at 73% 22%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 86% 54%, #eeeef6, transparent),
+        radial-gradient(1px 1px at 18% 88%, #fff, transparent),
+        radial-gradient(1px 1px at 52% 12%, #fff, transparent);
+      background-size: 120% 120%;
+      animation: demo-drift 48s linear infinite;
+    }
+    @keyframes demo-drift {
+      from { background-position: 0 0; }
+      to { background-position: 8% 12%; }
+    }
+    .demo-main > .view {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+    }
+    .demo-main > .view:not(.active) { display: none; }
+    .demo-main > .view.active {
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-shell">
+    <div class="demo-tabs">
+      <button type="button" class="demo-tab active" data-demo="friends">Friends</button>
+      <button type="button" class="demo-tab" data-demo="assistant">Space AI</button>
+    </div>
+    <div class="demo-main">
+      <div class="demo-starfield" aria-hidden="true"></div>
+
+      <section class="view view-fill active" id="view-friends">
+        <div class="social-shell">
+          <header class="social-topbar">
+            <div>
+              <h2 class="social-title">Friends</h2>
+              <p class="social-subtitle">Presence, DMs, and quick join</p>
+            </div>
+            <button type="button" class="social-add-btn" id="social-open-add">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add Friend
+            </button>
+          </header>
+          <div class="social-dashboard">
+            <aside class="social-sidebar glass-panel">
+              <div class="social-search-wrap">
+                <svg class="social-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                <input type="search" class="social-search" id="social-search" placeholder="Search friends…" />
+              </div>
+              <div class="social-friends-scroll" id="social-friends-list"></div>
+            </aside>
+            <section class="social-hub glass-panel" id="social-hub">
+              <div class="social-empty" id="social-empty">
+                <div class="social-empty-orb"></div>
+                <h3>Select a friend</h3>
+                <p>Open a chat from the list to message or quick-join their server.</p>
+              </div>
+              <div class="social-chat" id="social-chat" hidden>
+                <header class="social-chat-header">
+                  <div class="social-chat-peer">
+                    <div class="social-avatar-wrap social-avatar-lg">
+                      <img id="social-chat-avatar" alt="" width="40" height="40" />
+                      <span class="social-presence" id="social-chat-presence"></span>
+                    </div>
+                    <div>
+                      <div class="social-chat-name-row">
+                        <strong id="social-chat-name">Friend</strong>
+                        <span class="social-space-star" id="social-chat-star" hidden>✦</span>
+                      </div>
+                      <p class="social-chat-status" id="social-chat-status"></p>
+                    </div>
+                  </div>
+                  <button type="button" class="social-join-btn" id="social-quick-join" hidden>Quick Join Server</button>
+                </header>
+                <div class="social-messages" id="social-messages"></div>
+                <form class="social-compose" id="social-compose">
+                  <input type="text" class="social-compose-input" id="social-compose-input" placeholder="Message…" />
+                  <button type="submit" class="social-compose-send" aria-label="Send">➔</button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </div>
+        <div class="social-add-overlay" id="social-add-overlay" hidden>
+          <button type="button" class="social-add-veil" id="social-add-veil" aria-label="Close"></button>
+          <div class="social-add-panel glass-panel" role="dialog">
+            <h3>Add Friend</h3>
+            <p class="social-add-desc">Send a request by Minecraft username.</p>
+            <form id="social-add-form">
+              <label class="social-field-label" for="social-add-username">Minecraft Username</label>
+              <input type="text" id="social-add-username" class="social-add-input" placeholder="Enter Minecraft Username…" />
+              <p class="social-add-feedback" id="social-add-feedback"></p>
+              <button type="submit" class="social-add-submit" id="social-add-submit">
+                <span class="social-add-submit-label">Send Request</span>
+                <span class="social-ripple"></span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="view view-fill" id="view-assistant">
+        <div class="assistant-shell">
+          <header class="assistant-topbar">
+            <div>
+              <h2 class="social-title">Space AI</h2>
+              <p class="social-subtitle">Launch tips, mods, and Deep Space help</p>
+            </div>
+            <button type="button" class="assistant-clear-btn" id="assistant-clear">Clear chat</button>
+          </header>
+          <div class="assistant-panel glass-panel">
+            <div class="assistant-messages" id="assistant-messages"></div>
+            <form class="assistant-compose" id="assistant-compose">
+              <input type="text" class="social-compose-input" id="assistant-input" placeholder="Ask Space AI…" />
+              <button type="submit" class="social-compose-send" aria-label="Send">➔</button>
+            </form>
+            <div class="assistant-suggestions" id="assistant-suggestions">
+              <button type="button" class="assistant-chip" data-prompt="How do I equip a cape?">Equip a cape</button>
+              <button type="button" class="assistant-chip" data-prompt="Best FPS settings for Hypixel?">FPS settings</button>
+              <button type="button" class="assistant-chip" data-prompt="What is Space+?">What is Space+?</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="social.js"></script>
+  <script src="assistant.js"></script>
+  <script>
+    document.querySelectorAll(".demo-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".demo-tab").forEach((t) => t.classList.toggle("active", t === tab));
+        const id = tab.getAttribute("data-demo");
+        document.getElementById("view-friends").classList.toggle("active", id === "friends");
+        document.getElementById("view-assistant").classList.toggle("active", id === "assistant");
+      });
+    });
+    initSocial();
+    initAssistant();
+  </script>
+</body>
+</html>

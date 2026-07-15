@@ -1,8 +1,31 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
+const tls = require("tls");
+
+// Node 22+ default CA bundle can miss corp/system roots on Windows; use the OS store.
+try {
+  if (typeof tls.setDefaultCACertificates === "function" && typeof tls.getCACertificates === "function") {
+    tls.setDefaultCACertificates(tls.getCACertificates("system"));
+  }
+} catch {
+  // Best-effort — Electron net.fetch remains a fallback for downloads.
+}
+
 const { useMcAuth } = require("electron-mc-auth");
 const authSession = require("./auth-session");
 const gameLauncher = require("./game-launcher");
+const { initAutoUpdater, setMainWindow } = require("./auto-updater");
+const paymentsConfig = require("./payments-config");
+
+/** Only http(s) URLs may leave the app (Stripe Checkout). */
+function isAllowedExternalUrl(url) {
+  try {
+    const parsed = new URL(String(url || ""));
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 const BACKGROUND_COLOR = "#08080A";
 let mainWindow = null;
@@ -34,6 +57,12 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
+    setMainWindow(mainWindow);
+    initAutoUpdater(mainWindow, { autoCheckDelayMs: 4000 });
+  });
+
+  mainWindow.on("focus", () => {
+    mainWindow.webContents.send("payments:refresh");
   });
 
   mainWindow.on("maximize", () => {
@@ -125,6 +154,28 @@ ipcMain.handle("launch:start", async (_event, options = {}) => {
 
 ipcMain.handle("launch:is-running", () => gameLauncher.isGameRunning());
 
+ipcMain.handle("payments:open-external", async (_event, url) => {
+  if (!isAllowedExternalUrl(url)) {
+    return { success: false, error: "Only http(s) checkout URLs are allowed." };
+  }
+  try {
+    await shell.openExternal(String(url));
+    // User returns from Stripe in the browser — focus handler also refreshes entitlements.
+    setTimeout(() => {
+      mainWindow?.webContents.send("payments:refresh");
+    }, 1500);
+    return { success: true };
+  } catch (err) {
+    console.error("[payments] openExternal failed:", err);
+    return {
+      success: false,
+      error: err?.message || "Failed to open checkout in browser.",
+    };
+  }
+});
+
+ipcMain.handle("payments:get-api-base", () => paymentsConfig.getApiBase());
+
 app.whenReady().then(() => {
   authSession.loadSession();
   createWindow();
@@ -142,6 +193,7 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   } else if (mainWindow && !mainWindow.isVisible()) {
+    setMainWindow(mainWindow);
     mainWindow.show();
   }
 });
