@@ -7,7 +7,8 @@
   "use strict";
 
   const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
-  const STORAGE_KEY = "sc-friends-state-v1";
+  const STORAGE_KEY = "sl-friends-state-v1";
+  const LEGACY_STORAGE_KEY = "sc-friends-state-v1";
   const PRESENCE_TICK_MS = 28000;
 
   /** @typedef {"online"|"ingame"|"offline"} FriendPresence */
@@ -130,7 +131,11 @@
 
   function loadState() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      let raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) localStorage.setItem(STORAGE_KEY, raw);
+      }
       if (!raw) return defaultState();
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed.friends) || !parsed.friends.length) return defaultState();

@@ -10,7 +10,8 @@
   const LEGACY_OWNED = "sc-owned-cosmetics";
   const LEGACY_EQUIPPED = "sc-equipped-cosmetics";
   const SPACEPLUS_SUB_KEY = "spaceplus-subscribed";
-  const CREDITS_KEY = "sc-credits";
+  const CREDITS_KEY = "sl-credits";
+  const LEGACY_CREDITS = "sc-credits";
 
   /** @type {Array<{
    *   id: string,
@@ -69,6 +70,9 @@
   }
 
   function getCredits() {
+    if (localStorage.getItem(CREDITS_KEY) == null && localStorage.getItem(LEGACY_CREDITS) != null) {
+      localStorage.setItem(CREDITS_KEY, localStorage.getItem(LEGACY_CREDITS));
+    }
     return Number(localStorage.getItem(CREDITS_KEY) || 0) || 0;
   }
 

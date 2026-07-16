@@ -51,17 +51,20 @@ function writePkg(pkg) {
 }
 
 function nativesManifestPath() {
-  if (process.env.SPACE_CLIENT_NATIVES) {
-    return path.join(path.resolve(process.env.SPACE_CLIENT_NATIVES), 'natives.manifest.json');
+  if (process.env.SPACE_LAUNCHER_NATIVES || process.env.SPACE_CLIENT_NATIVES) {
+    return path.join(
+      path.resolve(process.env.SPACE_LAUNCHER_NATIVES || process.env.SPACE_CLIENT_NATIVES),
+      'natives.manifest.json'
+    );
   }
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(local, 'SpaceClient', 'natives', 'natives.manifest.json');
+    return path.join(local, 'SpaceLauncher', 'natives', 'natives.manifest.json');
   }
   if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceClient', 'natives', 'natives.manifest.json');
+    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceLauncher', 'natives', 'natives.manifest.json');
   }
-  return path.join(os.homedir(), '.local', 'share', 'SpaceClient', 'natives', 'natives.manifest.json');
+  return path.join(os.homedir(), '.local', 'share', 'SpaceLauncher', 'natives', 'natives.manifest.json');
 }
 
 function jarReleaseNote() {

@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  const ACTIVITY_KEY = "sc-activity-log";
+  const ACTIVITY_KEY = "sl-activity-log";
   const MAX_ACTIVITY = 12;
 
   const QUICK_ACTIONS = [
@@ -24,11 +24,11 @@
   }
 
   function ensureToastHost() {
-    let host = document.getElementById("sc-toast-host");
+    let host = document.getElementById("sl-toast-host");
     if (host) return host;
     host = document.createElement("div");
-    host.id = "sc-toast-host";
-    host.className = "sc-toast-host";
+    host.id = "sl-toast-host";
+    host.className = "sl-toast-host";
     host.setAttribute("aria-live", "polite");
     document.body.appendChild(host);
     return host;
@@ -37,10 +37,10 @@
   function showToast(message, opts = {}) {
     const host = ensureToastHost();
     const toast = document.createElement("div");
-    toast.className = `sc-toast sc-toast-${opts.tone || "info"}`;
+    toast.className = `sl-toast sl-toast-${opts.tone || "info"}`;
     toast.innerHTML = `
-      <span class="sc-toast-msg">${escapeHtml(message)}</span>
-      ${opts.actionLabel ? `<button type="button" class="sc-toast-action">${escapeHtml(opts.actionLabel)}</button>` : ""}
+      <span class="sl-toast-msg">${escapeHtml(message)}</span>
+      ${opts.actionLabel ? `<button type="button" class="sl-toast-action">${escapeHtml(opts.actionLabel)}</button>` : ""}
     `;
     host.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add("is-in"));
@@ -51,7 +51,7 @@
       setTimeout(() => toast.remove(), 280);
     };
 
-    const actionBtn = toast.querySelector(".sc-toast-action");
+    const actionBtn = toast.querySelector(".sl-toast-action");
     if (actionBtn && typeof opts.onAction === "function") {
       actionBtn.addEventListener("click", () => {
         opts.onAction();
@@ -239,19 +239,19 @@
   }
 
   function initCommandPalette() {
-    const existing = document.getElementById("sc-cmd-overlay");
+    const existing = document.getElementById("sl-cmd-overlay");
     if (existing) return;
 
     const overlay = document.createElement("div");
-    overlay.id = "sc-cmd-overlay";
-    overlay.className = "sc-cmd-overlay";
+    overlay.id = "sl-cmd-overlay";
+    overlay.className = "sl-cmd-overlay";
     overlay.hidden = true;
     overlay.innerHTML = `
-      <button type="button" class="sc-cmd-veil" aria-label="Close"></button>
-      <div class="sc-cmd-panel" role="dialog" aria-modal="true" aria-label="Quick navigate">
-        <input type="search" class="sc-cmd-input" id="sc-cmd-input" placeholder="Jump to… friends, mods, settings" autocomplete="off" />
-        <div class="sc-cmd-list" id="sc-cmd-list" role="listbox"></div>
-        <p class="sc-cmd-hint">Press <kbd>Esc</kbd> to close · <kbd>Ctrl</kbd>+<kbd>K</kbd> to open</p>
+      <button type="button" class="sl-cmd-veil" aria-label="Close"></button>
+      <div class="sl-cmd-panel" role="dialog" aria-modal="true" aria-label="Quick navigate">
+        <input type="search" class="sl-cmd-input" id="sl-cmd-input" placeholder="Jump to… friends, mods, settings" autocomplete="off" />
+        <div class="sl-cmd-list" id="sl-cmd-list" role="listbox"></div>
+        <p class="sl-cmd-hint">Press <kbd>Esc</kbd> to close · <kbd>Ctrl</kbd>+<kbd>K</kbd> to open</p>
       </div>`;
     document.body.appendChild(overlay);
 
@@ -267,8 +267,8 @@
       { id: "account", label: "Account", hint: "Microsoft sign-in" },
     ];
 
-    const input = overlay.querySelector("#sc-cmd-input");
-    const list = overlay.querySelector("#sc-cmd-list");
+    const input = overlay.querySelector("#sl-cmd-input");
+    const list = overlay.querySelector("#sl-cmd-list");
     let activeIndex = 0;
     let filtered = views;
 
@@ -280,13 +280,13 @@
         ? filtered
             .map(
               (v, i) => `
-          <button type="button" class="sc-cmd-item${i === 0 ? " is-active" : ""}" data-view="${escapeHtml(v.id)}" role="option" aria-selected="${i === 0}">
+          <button type="button" class="sl-cmd-item${i === 0 ? " is-active" : ""}" data-view="${escapeHtml(v.id)}" role="option" aria-selected="${i === 0}">
             <span>${escapeHtml(v.label)}</span>
-            <span class="sc-cmd-item-hint">${escapeHtml(v.hint)}</span>
+            <span class="sl-cmd-item-hint">${escapeHtml(v.hint)}</span>
           </button>`
             )
             .join("")
-        : `<p class="sc-cmd-empty">No matches</p>`;
+        : `<p class="sl-cmd-empty">No matches</p>`;
     }
 
     function open() {
@@ -307,7 +307,7 @@
       pushActivity({ kind: "nav", text: `Jumped to ${viewId}` });
     }
 
-    overlay.querySelector(".sc-cmd-veil")?.addEventListener("click", close);
+    overlay.querySelector(".sl-cmd-veil")?.addEventListener("click", close);
     input.addEventListener("input", renderList);
     list.addEventListener("click", (e) => {
       const item = e.target.closest("[data-view]");
@@ -321,11 +321,11 @@
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         activeIndex = Math.min(activeIndex + 1, filtered.length - 1);
-        list.querySelectorAll(".sc-cmd-item").forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+        list.querySelectorAll(".sl-cmd-item").forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         activeIndex = Math.max(activeIndex - 1, 0);
-        list.querySelectorAll(".sc-cmd-item").forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+        list.querySelectorAll(".sl-cmd-item").forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
       } else if (e.key === "Enter" && filtered[activeIndex]) {
         e.preventDefault();
         go(filtered[activeIndex].id);

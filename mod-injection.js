@@ -1,7 +1,7 @@
 /**
  * Space Launcher — Fabric performance mod injection.
  * Downloads/caches Sodium-stack jars under SpaceLauncher/natives and injects via
- * -Dfabric.addMods. No ClickGUI / space-client-core jar.
+ * -Dfabric.addMods. No ClickGUI / legacy client core jar.
  */
 
 'use strict';
@@ -455,7 +455,7 @@ function verifyAndResolve() {
 }
 
 function resolveCoreJar() {
-  return { ok: false, error: 'space-client-core removed — Space Launcher uses performance packs only' };
+  return { ok: false, error: 'legacy client core jar removed — Space Launcher uses performance packs only' };
 }
 
 module.exports = {

@@ -1,5 +1,5 @@
 /**
- * Space Client — Premium animated cape asset generator
+ * Space Launcher — Premium animated cape asset generator
  *
  * Specs (store-quality):
  * - Cape face: 20×30 px (Minecraft UV back panel)

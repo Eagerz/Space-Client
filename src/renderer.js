@@ -1,10 +1,27 @@
-const INSTALLED_KEY = "space-client-installed-mods";
-const ACCENT_KEY = "space-client-accent";
-const BLUR_BG_KEY = "space-client-blur-bg";
-const CLEAR_PANELS_KEY = "space-client-clear-panels";
-const RAM_KEY = "space-client-ram";
-const IN_GAME_KEY = "space-client-in-game";
+const INSTALLED_KEY = "sl-installed-mods";
+const ACCENT_KEY = "sl-accent";
+const BLUR_BG_KEY = "sl-blur-bg";
+const CLEAR_PANELS_KEY = "sl-clear-panels";
+const RAM_KEY = "sl-ram";
+const IN_GAME_KEY = "sl-in-game";
 const MODRINTH_PAGE_SIZE = 20;
+
+/** One-time migrate prefs from Space Client localStorage keys. */
+(function migrateLegacyStorageKeys() {
+  const pairs = [
+    ["space-client-installed-mods", INSTALLED_KEY],
+    ["space-client-accent", ACCENT_KEY],
+    ["space-client-blur-bg", BLUR_BG_KEY],
+    ["space-client-clear-panels", CLEAR_PANELS_KEY],
+    ["space-client-ram", RAM_KEY],
+    ["space-client-in-game", IN_GAME_KEY],
+  ];
+  for (const [from, to] of pairs) {
+    if (localStorage.getItem(to) == null && localStorage.getItem(from) != null) {
+      localStorage.setItem(to, localStorage.getItem(from));
+    }
+  }
+})();
 
 const ACCENT_COLORS = [
   { id: "white", value: "#FFFFFF", label: "White" },
@@ -89,7 +106,7 @@ const HOME_NEWS = [
     tag: "Release",
     date: "Jul 16, 2026",
     title: "Welcome to Space Launcher",
-    desc: "We've moved from Space Client to Space Launcher — performance packs replace the old ClickGUI jar, with a new cosmetics and Space+ experience.",
+    desc: "Space Launcher ships performance packs, profile cosmetics, and a redesigned Space+ membership.",
   },
   {
     id: "perf-packs",
@@ -110,8 +127,8 @@ const HOME_NEWS = [
 const COSMETICS = []; // migrated to src/cosmetics.js
 
 const cosmeticsState = { tab: "capes" };
-const OWNED_COSMETICS_KEY = "sc-owned-cosmetics";
-const EQUIPPED_COSMETICS_KEY = "sc-equipped-cosmetics";
+const OWNED_COSMETICS_KEY = "sl-owned-cosmetics";
+const EQUIPPED_COSMETICS_KEY = "sl-equipped-cosmetics";
 const SPACEPLUS_SUB_KEY = "spaceplus-subscribed";
 
 /** Username → role. Owner unlocks every cosmetic. */
@@ -491,10 +508,10 @@ function applyAccentColor(accentId) {
   const color = getAccentColor(accentId);
   const [r, g, b] = hexToRgb(color.value);
 
-  document.documentElement.style.setProperty("--sc-accent", color.value);
-  document.documentElement.style.setProperty("--sc-accent-rgb", `${r}, ${g}, ${b}`);
-  document.documentElement.style.setProperty("--sc-accent-muted", `rgba(${r}, ${g}, ${b}, 0.15)`);
-  document.documentElement.style.setProperty("--sc-accent-glow", `rgba(${r}, ${g}, ${b}, 0.22)`);
+  document.documentElement.style.setProperty("--sl-accent", color.value);
+  document.documentElement.style.setProperty("--sl-accent-rgb", `${r}, ${g}, ${b}`);
+  document.documentElement.style.setProperty("--sl-accent-muted", `rgba(${r}, ${g}, ${b}, 0.15)`);
+  document.documentElement.style.setProperty("--sl-accent-glow", `rgba(${r}, ${g}, ${b}, 0.22)`);
 
   document.querySelectorAll(".accent-swatch").forEach((swatch) => {
     const isActive = swatch.dataset.accent === color.id;
@@ -826,16 +843,26 @@ function initAutoUpdaterUI() {
 
 const STORE_CREDITS_PER_EUR = 100;
 const STORE_TAX_RATE = 0;
-const CREDITS_STORAGE_KEY = "sc-credits";
+const CREDITS_STORAGE_KEY = "sl-credits";
 
-/** Backend payments API — override with localStorage `sc-payments-api` if needed. */
+/** Migrate payments/credits keys from Space Client era. */
+(function migratePaymentsKeys() {
+  if (localStorage.getItem("sl-credits") == null && localStorage.getItem("sc-credits") != null) {
+    localStorage.setItem("sl-credits", localStorage.getItem("sc-credits"));
+  }
+  if (localStorage.getItem("sl-payments-api") == null && localStorage.getItem("sc-payments-api") != null) {
+    localStorage.setItem("sl-payments-api", localStorage.getItem("sc-payments-api"));
+  }
+})();
+
+/** Backend payments API — override with localStorage `sl-payments-api` if needed. */
 let PAYMENTS_API_BASE =
-  (typeof localStorage !== "undefined" && localStorage.getItem("sc-payments-api")) ||
+  (typeof localStorage !== "undefined" && localStorage.getItem("sl-payments-api")) ||
   "http://localhost:8787";
 
 async function resolvePaymentsApiBase() {
   const override =
-    typeof localStorage !== "undefined" && localStorage.getItem("sc-payments-api");
+    typeof localStorage !== "undefined" && localStorage.getItem("sl-payments-api");
   if (override) {
     PAYMENTS_API_BASE = override.replace(/\/$/, "");
     return PAYMENTS_API_BASE;
@@ -962,7 +989,7 @@ async function syncPlayerEntitlementsFromBackend() {
     }
     if (typeof player.spacePlus === "boolean") {
       localStorage.setItem(SPACEPLUS_SUB_KEY, player.spacePlus ? "true" : "false");
-      document.dispatchEvent(new CustomEvent("sc-spaceplus-sync"));
+      document.dispatchEvent(new CustomEvent("sl-spaceplus-sync"));
     }
     return player;
   } catch {
@@ -1285,7 +1312,7 @@ function initSpacePlus() {
 
   function toggleDemoSubscription() {
     localStorage.setItem(SPACEPLUS_SUB_KEY, isSubscribed() ? "false" : "true");
-    document.dispatchEvent(new CustomEvent("sc-spaceplus-sync"));
+    document.dispatchEvent(new CustomEvent("sl-spaceplus-sync"));
     window.dispatchEvent(new CustomEvent("space-entitlements-changed"));
   }
 
@@ -1301,7 +1328,7 @@ function initSpacePlus() {
   document.getElementById("spaceplus-billing-manage-btn")?.addEventListener("click", manageSubscription);
   document.getElementById("spaceplus-demo-toggle")?.addEventListener("click", toggleDemoSubscription);
 
-  document.addEventListener("sc-spaceplus-sync", () => {
+  document.addEventListener("sl-spaceplus-sync", () => {
     updateSubscriptionUI();
     syncCosmeticEquippedState();
     renderCosmeticsGrid();
@@ -1765,8 +1792,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     navigateToView("friends");
   });
 
-  window.SpaceClientAuth = {
+  window.SpaceLauncherAuth = {
     getUsername: () => getCurrentUsername(),
   };
-  window.SpaceLauncherAuth = window.SpaceClientAuth;
 });

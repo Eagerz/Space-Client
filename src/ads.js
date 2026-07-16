@@ -6,9 +6,25 @@
   "use strict";
 
   const SPACEPLUS_SUB_KEY = "spaceplus-subscribed";
-  const ADS_OPT_OUT_KEY = "sc-ads-opt-out";
-  const ADS_STATS_KEY = "sc-ads-stats";
-  const INTERSTITIAL_LAST_KEY = "sc-ad-interstitial-last";
+  const ADS_OPT_OUT_KEY = "sl-ads-opt-out";
+  const ADS_STATS_KEY = "sl-ads-stats";
+  const INTERSTITIAL_LAST_KEY = "sl-ad-interstitial-last";
+  const LEGACY_ADS_OPT_OUT = "sc-ads-opt-out";
+  const LEGACY_ADS_STATS = "sc-ads-stats";
+  const LEGACY_INTERSTITIAL = "sc-ad-interstitial-last";
+
+  (function migrateAdsKeys() {
+    const pairs = [
+      [LEGACY_ADS_OPT_OUT, ADS_OPT_OUT_KEY],
+      [LEGACY_ADS_STATS, ADS_STATS_KEY],
+      [LEGACY_INTERSTITIAL, INTERSTITIAL_LAST_KEY],
+    ];
+    for (const [from, to] of pairs) {
+      if (localStorage.getItem(to) == null && localStorage.getItem(from) != null) {
+        localStorage.setItem(to, localStorage.getItem(from));
+      }
+    }
+  })();
   const INTERSTITIAL_COOLDOWN_MS = 12 * 60 * 1000;
 
   const AD_CATALOG = [
@@ -75,7 +91,7 @@
   }
 
   function isOwner() {
-    const name = (window.SpaceClientAuth?.getUsername?.() || "").trim().toLowerCase();
+    const name = (window.SpaceLauncherAuth?.getUsername?.() || "").trim().toLowerCase();
     return name === "eagerz8811" || name === "eagerz";
   }
 
@@ -134,19 +150,19 @@
     track(ad.id, "impressions");
     container.hidden = false;
     container.innerHTML = `
-      <article class="sc-ad sc-ad-${escapeHtml(ad.tone)} sc-ad-${escapeHtml(variant)}" data-ad-id="${escapeHtml(ad.id)}">
-        <div class="sc-ad-meta">
-          <span class="sc-ad-sponsor">${escapeHtml(ad.sponsor)}</span>
-          <span class="sc-ad-label">Sponsored</span>
+      <article class="sl-ad sl-ad-${escapeHtml(ad.tone)} sl-ad-${escapeHtml(variant)}" data-ad-id="${escapeHtml(ad.id)}">
+        <div class="sl-ad-meta">
+          <span class="sl-ad-sponsor">${escapeHtml(ad.sponsor)}</span>
+          <span class="sl-ad-label">Sponsored</span>
         </div>
-        <div class="sc-ad-body">
+        <div class="sl-ad-body">
           <div>
-            <h3 class="sc-ad-title">${escapeHtml(ad.title)}</h3>
-            <p class="sc-ad-sub">${escapeHtml(ad.subtitle)}</p>
+            <h3 class="sl-ad-title">${escapeHtml(ad.title)}</h3>
+            <p class="sl-ad-sub">${escapeHtml(ad.subtitle)}</p>
           </div>
-          <button type="button" class="sc-ad-cta" data-ad-cta>${escapeHtml(ad.cta)}</button>
+          <button type="button" class="sl-ad-cta" data-ad-cta>${escapeHtml(ad.cta)}</button>
         </div>
-        <button type="button" class="sc-ad-dismiss" aria-label="Dismiss ad" data-ad-dismiss>×</button>
+        <button type="button" class="sl-ad-dismiss" aria-label="Dismiss ad" data-ad-dismiss>×</button>
       </article>`;
 
     container.querySelector("[data-ad-cta]")?.addEventListener("click", () => handleAdClick(ad));
@@ -223,18 +239,18 @@
 
       let remaining = 3;
       body.innerHTML = `
-        <article class="sc-ad sc-ad-${escapeHtml(ad.tone)} sc-ad-interstitial" data-ad-id="${escapeHtml(ad.id)}">
-          <div class="sc-ad-meta">
-            <span class="sc-ad-sponsor">${escapeHtml(ad.sponsor)}</span>
-            <span class="sc-ad-label">Sponsored</span>
+        <article class="sl-ad sl-ad-${escapeHtml(ad.tone)} sl-ad-interstitial" data-ad-id="${escapeHtml(ad.id)}">
+          <div class="sl-ad-meta">
+            <span class="sl-ad-sponsor">${escapeHtml(ad.sponsor)}</span>
+            <span class="sl-ad-label">Sponsored</span>
           </div>
-          <h3 class="sc-ad-title">${escapeHtml(ad.title)}</h3>
-          <p class="sc-ad-sub">${escapeHtml(ad.subtitle)}</p>
-          <div class="sc-ad-interstitial-actions">
-            <button type="button" class="sc-ad-cta" data-ad-cta>${escapeHtml(ad.cta)}</button>
-            <button type="button" class="sc-ad-skip" data-ad-skip disabled>Continue in ${remaining}…</button>
+          <h3 class="sl-ad-title">${escapeHtml(ad.title)}</h3>
+          <p class="sl-ad-sub">${escapeHtml(ad.subtitle)}</p>
+          <div class="sl-ad-interstitial-actions">
+            <button type="button" class="sl-ad-cta" data-ad-cta>${escapeHtml(ad.cta)}</button>
+            <button type="button" class="sl-ad-skip" data-ad-skip disabled>Continue in ${remaining}…</button>
           </div>
-          <p class="sc-ad-spaceplus-hint">Space+ members never see these — <button type="button" class="sc-ad-link" data-goto-plus>Upgrade</button></p>
+          <p class="sl-ad-spaceplus-hint">Space+ members never see these — <button type="button" class="sl-ad-link" data-goto-plus>Upgrade</button></p>
         </article>`;
 
       overlay.hidden = false;
