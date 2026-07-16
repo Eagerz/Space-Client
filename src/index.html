@@ -19,6 +19,7 @@
       <span class="titlebar-status-dot offline" id="titlebar-status-dot" aria-hidden="true"></span>
       <span class="titlebar-player-name" id="titlebar-player-name">Guest</span>
       <span class="titlebar-role-badge" id="titlebar-role-badge" hidden></span>
+      <span class="early-access-badge" id="early-access-badge" hidden title="Early access channel">BETA</span>
     </div>
     <div class="window-controls">
       <button class="window-btn" id="btn-minimize" type="button" aria-label="Minimize">
@@ -282,6 +283,11 @@
           <h2>Cosmetics</h2>
           <p>Browse and equip capes and pets for your profile</p>
         </header>
+        <div class="seasonal-drop-banner" id="seasonal-drop-banner" hidden></div>
+        <div class="cosmetics-upsell-inline" id="cosmetics-upsell-inline">
+          <span>Want member exclusives &amp; seasonal drops?</span>
+          <button type="button" class="btn-mod primary" data-open-spaceplus-upsell="Seasonal and member cosmetics unlock with Space+.">View Space+</button>
+        </div>
         <div class="cosmetics-toolbar">
           <div class="cosmetics-tabs" role="tablist" aria-label="Cosmetic categories">
             <button type="button" class="cosmetics-tab active" data-cosmetics-tab="capes" role="tab" aria-selected="true">Capes</button>
@@ -458,24 +464,44 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Priority Launch Queue</td>
-                    <td><span class="spaceplus-val-no">No</span></td>
-                    <td><span class="spaceplus-val-yes">Yes</span></td>
-                  </tr>
-                  <tr>
-                    <td>Exclusive Launcher Cosmetics</td>
-                    <td><span class="spaceplus-val-no">No</span></td>
-                    <td><span class="spaceplus-val-yes">Yes, 5+ unlocked</span></td>
-                  </tr>
-                  <tr>
-                    <td>Discord Premium Role &amp; Beta Features</td>
-                    <td><span class="spaceplus-val-no">No</span></td>
-                    <td><span class="spaceplus-val-yes">Yes</span></td>
-                  </tr>
-                  <tr>
-                    <td>Custom Launcher Profile Badge</td>
+                    <td>Priority downloads (faster game/mod fetch)</td>
                     <td><span class="spaceplus-val-muted">Standard</span></td>
-                    <td><span class="spaceplus-val-yes">Animated Star</span></td>
+                    <td><span class="spaceplus-val-yes">12 parallel</span></td>
+                  </tr>
+                  <tr>
+                    <td>Crash Recovery Pro</td>
+                    <td><span class="spaceplus-val-muted">Basic tips</span></td>
+                    <td><span class="spaceplus-val-yes">Deep tips + Safe Repair</span></td>
+                  </tr>
+                  <tr>
+                    <td>Seasonal exclusive cosmetics</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                  </tr>
+                  <tr>
+                    <td>Profile flair (animated star)</td>
+                    <td><span class="spaceplus-val-muted">Standard</span></td>
+                    <td><span class="spaceplus-val-yes">Animated</span></td>
+                  </tr>
+                  <tr>
+                    <td>Early access channel</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                  </tr>
+                  <tr>
+                    <td>Monthly credit stipend</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">200 credits</span></td>
+                  </tr>
+                  <tr>
+                    <td>Exclusive member cosmetics</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                  </tr>
+                  <tr>
+                    <td>Discord Premium Role</td>
+                    <td><span class="spaceplus-val-no">No</span></td>
+                    <td><span class="spaceplus-val-yes">Yes</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -489,37 +515,50 @@
                 <div class="spaceplus-perk-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                 </div>
-                <h4>Priority Launch Queue</h4>
-                <p>Skip the line and launch first during peak hours.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
-                </div>
-                <h4>Exclusive Cosmetics</h4>
-                <p>Member-only animated capes: Plus Sigil, Member Orbit, and Priority Flare.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                </div>
-                <h4>Discord Premium Role</h4>
-                <p>Exclusive role and early beta feature access.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
-                </div>
-                <h4>Animated Star Badge</h4>
-                <p>Stand out with a shimmering profile badge.</p>
+                <h4>Priority Downloads</h4>
+                <p>More parallel file downloads so first launches and mod updates finish faster.</p>
               </article>
               <article class="spaceplus-perk-card">
                 <div class="spaceplus-perk-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
-                <h4>Early Access</h4>
-                <p>Be first to try new launcher features and updates.</p>
+                <h4>Crash Recovery Pro</h4>
+                <p>Deeper crash diagnosis plus Safe Repair that disables the last conflicting mod.</p>
               </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
+                </div>
+                <h4>Seasonal Drops</h4>
+                <p>Rotating Space+ exclusive capes each season so renewal stays fresh.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                </div>
+                <h4>Profile Flair</h4>
+                <p>Animated star in the titlebar and Space+ glow in Friends.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 2z"/></svg>
+                </div>
+                <h4>Early Access</h4>
+                <p>Opt into the beta channel for upcoming launcher features.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7.2l1.15 2.35 2.55.37-1.85 1.8.44 2.55L12 13.1l-2.29 1.17.44-2.55-1.85-1.8 2.55-.37L12 7.2z"/></svg>
+                </div>
+                <h4>200 Credits / Month</h4>
+                <p>Automatic stipend for pets, boosts, wallpapers, and tips.</p>
+              </article>
+            </div>
+
+            <div class="spaceplus-stipend-bar">
+              <p id="spaceplus-stipend-status">Space+ members receive 200 credits every month.</p>
+              <button type="button" class="btn-mod primary" id="spaceplus-claim-stipend">Claim stipend</button>
+              <p class="spaceplus-stipend-flash" id="spaceplus-stipend-flash" hidden></p>
             </div>
           </div>
 
@@ -664,6 +703,31 @@
                 <button type="button" class="btn-store-select-custom" id="store-select-custom">Use custom amount</button>
               </div>
             </div>
+
+            <h3 class="store-section-title">Boosts</h3>
+            <p class="store-section-desc">Cosmetic-only timed flair. Never pay-to-win.</p>
+            <div class="store-extras-list" id="store-boosts"></div>
+
+            <h3 class="store-section-title">Launcher wallpapers</h3>
+            <p class="store-section-desc">Atmosphere for the main panel — spend credits, equip anytime.</p>
+            <div class="store-extras-list" id="store-wallpapers"></div>
+
+            <h3 class="store-section-title">Gift Space+</h3>
+            <p class="store-section-desc">Buy a 1‑month gift code for 499 credits (~€4.99), or redeem one you received.</p>
+            <div class="store-gift-panel">
+              <button type="button" class="btn-mod primary" id="store-buy-gift-btn">Buy gift code</button>
+              <div class="store-gift-redeem">
+                <input type="text" class="select-field" id="store-redeem-gift-input" placeholder="SP+-XXXX-XXXX" spellcheck="false" />
+                <button type="button" class="btn-mod" id="store-redeem-gift-btn">Redeem</button>
+              </div>
+              <p class="store-gift-status" id="store-gift-status" hidden></p>
+              <div class="store-gift-list" id="store-gift-list"></div>
+            </div>
+
+            <h3 class="store-section-title">Creator tips</h3>
+            <p class="store-section-desc">Send credits to community cape creators. Space keeps the catalog; creators get the love.</p>
+            <p class="store-gift-status" id="store-tips-status" hidden></p>
+            <div class="store-extras-list" id="store-creator-tips"></div>
           </div>
 
           <aside class="store-checkout" aria-labelledby="store-checkout-heading">
@@ -727,6 +791,16 @@
             <div class="instances-actions">
               <button type="button" class="btn-mod primary" id="instance-create-btn">New instance</button>
             </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Early Access Channel</div>
+              <div class="settings-row-desc" id="early-access-status">Space+ unlocks the early-access channel.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="early-access-toggle" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
           </div>
           <div class="settings-row">
             <div>
@@ -955,6 +1029,12 @@
     <div class="launch-crash-tips" id="launch-crash-tips" hidden>
       <h3 class="launch-crash-tips-title">Possible fixes</h3>
       <ul class="launch-crash-tips-list" id="launch-crash-tips-list"></ul>
+      <div class="crash-pro-panel" id="crash-pro-panel">
+        <p class="crash-pro-copy" id="crash-pro-copy"></p>
+        <button type="button" class="btn-mod primary" id="crash-pro-repair-btn">Safe Repair</button>
+        <button type="button" class="btn-mod" data-open-spaceplus-upsell="Crash Recovery Pro is included with Space+." id="crash-pro-upsell-btn" hidden>Unlock with Space+</button>
+        <p class="crash-pro-status" id="crash-pro-status" hidden></p>
+      </div>
     </div>
     <div class="launch-console" id="launch-console" aria-label="Game logs">
       <div class="launch-console-header">
@@ -1019,6 +1099,7 @@
 
   <script src="modrinth.js"></script>
   <script src="launcher-features.js"></script>
+  <script src="monetization.js"></script>
 <script src="social.js"></script>
 <script src="assistant.js"></script>
 <script src="renderer.js"></script>

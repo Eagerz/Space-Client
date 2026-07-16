@@ -403,7 +403,10 @@ async function launchGame(win, options = {}) {
       detached: false,
       // Fabric install + Java can exceed 15s on first launch.
       timeout: 60000,
-      downloadFileMultiple: 5,
+      downloadFileMultiple: Math.min(
+        16,
+        Math.max(1, Number(options.downloadParallel) || 5)
+      ),
       verify: false,
       ignored: ["config", "logs", "resourcepacks", "options.txt", "optionsof.txt", "saves"],
       loader: {

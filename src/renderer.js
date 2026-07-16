@@ -363,6 +363,22 @@ const COSMETICS = [
     equipped: false,
   },
   {
+    id: "solstice-veil",
+    category: "capes",
+    name: "Solstice Veil",
+    desc: "Summer 2026 seasonal drop — silver heat-haze bands over a charcoal field.",
+    rarity: "legendary",
+    tags: ["Animated", "Seasonal", "Space+", "Exclusive"],
+    exclusive: "spaceplus",
+    seasonal: true,
+    seasonId: "summer-2026",
+    previewImage: "assets/capes/aurora-borealis-preview.png",
+    sheetImage: "assets/capes/aurora-borealis-sheet.png",
+    textureImage: "assets/capes/aurora-borealis-texture.png",
+    frameCount: 24,
+    equipped: false,
+  },
+  {
     id: "space-pup",
     category: "pets",
     name: "Space Pup",
@@ -370,7 +386,8 @@ const COSMETICS = [
     rarity: "rare",
     tags: ["Companion"],
     preview: "🐕",
-    equipped: true,
+    price: 450,
+    equipped: false,
   },
   {
     id: "star-fox",
@@ -380,6 +397,7 @@ const COSMETICS = [
     rarity: "legendary",
     tags: ["Animated", "Rare Drop"],
     preview: "🦊",
+    price: 900,
     equipped: false,
   },
   {
@@ -390,6 +408,7 @@ const COSMETICS = [
     rarity: "epic",
     tags: ["Floating"],
     preview: "🐱",
+    price: 650,
     equipped: false,
   },
   {
@@ -400,6 +419,7 @@ const COSMETICS = [
     rarity: "common",
     tags: ["Starter"],
     preview: "✨",
+    price: 150,
     equipped: false,
   },
 ];
@@ -493,6 +513,8 @@ function isSpacePlusActive() {
   return localStorage.getItem(SPACEPLUS_SUB_KEY) === "true" || isOwnerPlayer();
 }
 
+window.isSpacePlusActive = isSpacePlusActive;
+
 function playerHasAllCosmetics() {
   return Boolean(getPlayerRole()?.grantsAllCosmetics);
 }
@@ -513,7 +535,24 @@ function isCosmeticOwned(id) {
   const item = COSMETICS.find((entry) => entry.id === id);
   if (!item) return false;
   if (playerHasAllCosmetics()) return true;
-  if (item.exclusive === "spaceplus" && isSpacePlusActive()) return true;
+  if (item.exclusive === "spaceplus") {
+    if (!isSpacePlusActive()) return false;
+    if (item.seasonal) {
+      const seasonLive =
+        window.SpaceMonetization?.isSeasonActive?.() &&
+        (!item.seasonId || window.SpaceMonetization?.getSeasonInfo?.()?.id === item.seasonId);
+      if (seasonLive) {
+        const owned = getOwnedCosmetics();
+        if (!owned.includes(id)) {
+          owned.push(id);
+          setOwnedCosmetics(owned);
+        }
+        return true;
+      }
+      return getOwnedCosmetics().includes(id);
+    }
+    return true;
+  }
   if (item.price == null && !item.exclusive) return true;
   return getOwnedCosmetics().includes(id);
 }
@@ -553,6 +592,9 @@ function setCreditsBalance(credits) {
   if (balanceEl) balanceEl.textContent = formatStoreCredits(value);
   return value;
 }
+
+window.getCreditsBalance = getCreditsBalance;
+window.setCreditsBalance = setCreditsBalance;
 
 function purchaseCosmetic(id) {
   const item = COSMETICS.find((entry) => entry.id === id);
@@ -2552,6 +2594,7 @@ function initSpacePlus() {
     updateSubscriptionUI();
     syncCosmeticEquippedState();
     renderCosmeticsGrid();
+    window.SpaceMonetization?.applyAll?.();
     const spacePlusRow = document.getElementById("account-spaceplus-value");
     if (spacePlusRow && currentAuthState.isLoggedIn) {
       const plus = isSpacePlusActive();
@@ -2693,14 +2736,30 @@ function buildLaunchCrashTips(logText = "", exitCode = null) {
   return [...new Set(tips)].slice(0, 6);
 }
 
+window.buildLaunchCrashTips = buildLaunchCrashTips;
+
 function showLaunchCrashTips(logText, exitCode) {
   const tipsEl = document.getElementById("launch-crash-tips");
   const list = document.getElementById("launch-crash-tips-list");
   if (!tipsEl || !list) return;
 
-  const tips = buildLaunchCrashTips(logText, exitCode);
+  const pro = window.SpaceMonetization?.buildCrashProTips?.(logText, exitCode);
+  const tips = pro?.tips || buildLaunchCrashTips(logText, exitCode);
   list.innerHTML = tips.map((tip) => `<li>${escapeHtml(tip)}</li>`).join("");
   tipsEl.hidden = false;
+
+  const copy = document.getElementById("crash-pro-copy");
+  const repairBtn = document.getElementById("crash-pro-repair-btn");
+  const upsellBtn = document.getElementById("crash-pro-upsell-btn");
+  if (pro?.pro) {
+    if (copy) copy.textContent = "Crash Recovery Pro is active — Safe Repair can disable the latest conflicting mod.";
+    if (repairBtn) repairBtn.hidden = false;
+    if (upsellBtn) upsellBtn.hidden = true;
+  } else {
+    if (copy) copy.textContent = pro?.upsell || "Upgrade to Space+ for Crash Recovery Pro.";
+    if (repairBtn) repairBtn.hidden = true;
+    if (upsellBtn) upsellBtn.hidden = false;
+  }
 }
 
 function setLaunchProgressVisible(visible) {
@@ -2939,6 +2998,8 @@ function initPlayButton() {
       document.getElementById("java-path-input")?.value?.trim() ||
       active?.javaPath ||
       null;
+    const downloadParallel =
+      window.SpaceMonetization?.getDownloadParallelism?.() || 5;
 
     try {
       const result = await api.launchGame({
@@ -2948,6 +3009,7 @@ function initPlayButton() {
         equippedCape,
         instanceId: active?.id,
         javaPath,
+        downloadParallel,
       });
       if (!result?.success) {
         launching = false;
@@ -3003,4 +3065,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initPlayButton();
   updateActiveModCount();
   await window.LauncherFeatures?.init?.();
+  window.SpaceMonetization?.init?.();
 });

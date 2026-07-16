@@ -27,6 +27,7 @@
       presence: "ingame",
       detail: "Playing Hypixel (Bedwars)",
       server: "mc.hypixel.net",
+      spacePlus: true,
       messages: [
         { id: "m1", from: "them", text: "queue up for bedwars?", at: "18:02" },
         { id: "m2", from: "me", text: "one sec — launching Space", at: "18:03" },
@@ -39,6 +40,7 @@
       presence: "online",
       detail: "Online in launcher",
       server: null,
+      spacePlus: false,
       messages: [
         { id: "m1", from: "me", text: "you see the new cape shop?", at: "12:10" },
         { id: "m2", from: "them", text: "yeah Event Horizon looks insane", at: "12:12" },
@@ -50,6 +52,7 @@
       presence: "online",
       detail: "Idle",
       server: null,
+      spacePlus: true,
       messages: [
         { id: "m1", from: "them", text: "WANNA duel on mineplex later", at: "09:40" },
         { id: "m2", from: "me", text: "after this ranked game", at: "09:41" },
@@ -61,6 +64,7 @@
       presence: "ingame",
       detail: "Playing on play.cubecraft.net",
       server: "play.cubecraft.net",
+      spacePlus: false,
       messages: [
         { id: "m1", from: "them", text: "skywars is cracked today", at: "17:55" },
       ],
@@ -72,6 +76,7 @@
       detail: "Offline — 3h ago",
       lastSeen: "3h ago",
       server: null,
+      spacePlus: false,
       messages: [
         { id: "m1", from: "me", text: "gn — cubecraft tomorrow?", at: "Yesterday" },
         { id: "m2", from: "them", text: "bet", at: "Yesterday" },
@@ -84,6 +89,7 @@
       detail: "Offline — 2d ago",
       lastSeen: "2d ago",
       server: null,
+      spacePlus: true,
       messages: [
         { id: "m1", from: "them", text: "got Space+ yet?", at: "Mon" },
         { id: "m2", from: "me", text: "yep — exclusive capes unlocked", at: "Mon" },
@@ -165,8 +171,11 @@
       f.presence === "ingame"
         ? `<span class="social-space-star" title="Online on Space Client" aria-label="Online on Space Client">✦</span>`
         : "";
+    const plusFlair = f.spacePlus
+      ? `<span class="social-plus-flair" title="Space+" aria-label="Space+ member">+</span>`
+      : "";
     return `
-      <button type="button" class="social-friend-card${active}${muted}" data-friend-id="${escapeHtml(f.id)}" role="listitem">
+      <button type="button" class="social-friend-card${active}${muted}${f.spacePlus ? " has-plus-flair" : ""}" data-friend-id="${escapeHtml(f.id)}" role="listitem">
         <div class="social-avatar-wrap">
           <img src="${avatarUrl(f.username)}" alt="" width="36" height="36" loading="lazy" />
           <span class="social-presence presence-${escapeHtml(f.presence)}"></span>
@@ -174,6 +183,7 @@
         <div class="social-friend-meta">
           <div class="social-friend-name-row">
             <span class="social-friend-name">${escapeHtml(f.username)}</span>
+            ${plusFlair}
             ${star}
           </div>
           <span class="social-friend-detail">${escapeHtml(f.detail)}</span>
