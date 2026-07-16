@@ -1,9 +1,9 @@
 {
-  "name": "space-client",
-  "version": "1.0.1",
-  "description": "Space Client — premium Minecraft companion launcher",
+  "name": "space-launcher",
+  "version": "1.1.0",
+  "description": "Space Launcher — premium Minecraft launcher with performance boosts",
   "main": "main.js",
-  "author": "Space Client",
+  "author": "Space Launcher",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -23,8 +23,6 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
-    "build:mods": "node scripts/build-space-client-core.js",
-    "generate:capes": "node scripts/generate-cape-assets.js",
     "publish:update": "node scripts/publish-app-update.js"
   },
   "devDependencies": {
@@ -32,8 +30,8 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.spaceclient.app",
-    "productName": "Space Client",
+    "appId": "com.spacelauncher.app",
+    "productName": "Space Launcher",
     "directories": {
       "output": "dist"
     },
@@ -60,7 +58,7 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Space-Client-Setup-${version}.${ext}"
+      "artifactName": "Space-Launcher-Setup-${version}.${ext}"
     },
     "mac": {
       "target": [

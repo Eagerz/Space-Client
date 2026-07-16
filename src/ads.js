@@ -1,5 +1,5 @@
 /**
- * Space Client — Promotional ads system (client-side)
+ * Space Launcher — Promotional ads system (client-side)
  * Space+ / Owner roles hide all ads. Slots: home banner, mods rail, pre-play interstitial.
  */
 (function () {
@@ -35,12 +35,12 @@
     {
       id: "spaceplus-promo",
       title: "Go ad-free with Space+",
-      subtitle: "Exclusive capes, priority launch, and no promos",
+      subtitle: "Max Boost, exclusive flair, and no promos",
       cta: "Upgrade",
       url: "#spaceplus",
       tone: "gold",
       slots: ["home", "interstitial"],
-      sponsor: "Space Client",
+      sponsor: "Space Launcher",
       internal: true,
       view: "spaceplus",
     },

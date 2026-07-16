@@ -1,5 +1,5 @@
 /**
- * GitHub-powered auto-updater for Space Client (electron-updater).
+ * GitHub-powered auto-updater for Space Launcher (electron-updater).
  * Non-silent: never auto-downloads or auto-installs; UI must confirm.
  * Only active in packaged builds (app.isPackaged).
  */

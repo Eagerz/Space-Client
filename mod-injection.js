@@ -1,6 +1,7 @@
 /**
- * Resolve Space Client core + Fabric API jars and build fabric.addMods injection.
- * Jars stay under SpaceClient natives/bin — never copied into .minecraft/mods.
+ * Space Launcher — Fabric performance mod injection.
+ * Downloads/caches Sodium-stack jars under SpaceLauncher/natives and injects via
+ * -Dfabric.addMods. No ClickGUI / space-client-core jar.
  */
 
 'use strict';
@@ -13,11 +14,10 @@ const os = require('os');
 const path = require('path');
 const { URL } = require('url');
 
-const SHIP_NAME = 'space-client-core.jar';
-const RT_NAME = 'space_rt.jar';
 const FABRIC_API_PREFIX = 'fabric-api-';
+const USER_AGENT = 'SpaceLauncher/1.0 (performance-mods)';
 
-/** Pinned Fabric API builds for Space Client–supported versions. */
+/** Pinned Fabric API builds for supported Minecraft versions. */
 const FABRIC_API_BY_MC = {
   '1.21.1': '0.116.13+1.21.1',
   '1.21': '0.102.0+1.21',
@@ -26,42 +26,87 @@ const FABRIC_API_BY_MC = {
   '1.21.4': '0.119.2+1.21.4',
 };
 
-function readJsonFile(filePath) {
-  // PowerShell Set-Content often writes UTF-8 with BOM, which JSON.parse rejects.
-  const raw = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
-  return JSON.parse(raw);
-}
+/**
+ * Modrinth project IDs for performance mods.
+ * Resolved at launch for the selected Minecraft + Fabric loader.
+ */
+const PERF_MOD_CATALOG = {
+  sodium: { id: 'AANobbMI', name: 'Sodium' },
+  lithium: { id: 'gvQqBUqZ', name: 'Lithium' },
+  'ferrite-core': { id: 'uXXizFIs', name: 'FerriteCore' },
+  entityculling: { id: 'NNAgCjsB', name: 'Entity Culling' },
+  immediatelyfast: { id: '5ZwdcRci', name: 'ImmediatelyFast' },
+  moreculling: { id: '51shyZVL', name: 'MoreCulling' },
+  modernfix: { id: 'nmDcB62a', name: 'ModernFix' },
+};
+
+/** @typedef {'off'|'lite'|'standard'|'max'} PerfPackId */
+
+const PERF_PACKS = {
+  off: {
+    id: 'off',
+    label: 'Vanilla Fabric',
+    desc: 'Fabric loader only — no performance jars',
+    mods: [],
+    spacePlusOnly: false,
+  },
+  lite: {
+    id: 'lite',
+    label: 'Lite Boost',
+    desc: 'Sodium + Lithium + FerriteCore — best for low-end PCs',
+    mods: ['sodium', 'lithium', 'ferrite-core'],
+    spacePlusOnly: false,
+  },
+  standard: {
+    id: 'standard',
+    label: 'Standard Boost',
+    desc: 'Lite plus Entity Culling & ImmediatelyFast',
+    mods: ['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'],
+    spacePlusOnly: false,
+  },
+  max: {
+    id: 'max',
+    label: 'Max Boost',
+    desc: 'Full stack including MoreCulling & ModernFix — Space+ exclusive',
+    mods: [
+      'sodium',
+      'lithium',
+      'ferrite-core',
+      'entityculling',
+      'immediatelyfast',
+      'moreculling',
+      'modernfix',
+    ],
+    spacePlusOnly: true,
+  },
+};
 
 function defaultNativesDir() {
-  if (process.env.SPACE_CLIENT_NATIVES) {
-    return path.resolve(process.env.SPACE_CLIENT_NATIVES);
+  if (process.env.SPACE_LAUNCHER_NATIVES || process.env.SPACE_CLIENT_NATIVES) {
+    return path.resolve(process.env.SPACE_LAUNCHER_NATIVES || process.env.SPACE_CLIENT_NATIVES);
   }
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(local, 'SpaceClient', 'natives');
+    return path.join(local, 'SpaceLauncher', 'natives');
   }
   if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceClient', 'natives');
+    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceLauncher', 'natives');
   }
-  return path.join(os.homedir(), '.local', 'share', 'SpaceClient', 'natives');
+  return path.join(os.homedir(), '.local', 'share', 'SpaceLauncher', 'natives');
 }
 
 function defaultBinDir() {
-  if (process.env.SPACE_CLIENT_BIN) {
-    return path.resolve(process.env.SPACE_CLIENT_BIN);
+  if (process.env.SPACE_LAUNCHER_BIN || process.env.SPACE_CLIENT_BIN) {
+    return path.resolve(process.env.SPACE_LAUNCHER_BIN || process.env.SPACE_CLIENT_BIN);
   }
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(local, 'SpaceClient', 'bin');
+    return path.join(local, 'SpaceLauncher', 'bin');
   }
   if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceClient', 'bin');
+    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceLauncher', 'bin');
   }
-  return path.join(os.homedir(), '.local', 'share', 'SpaceClient', 'bin');
-}
-
-function sha256File(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  return path.join(os.homedir(), '.local', 'share', 'SpaceLauncher', 'bin');
 }
 
 function fabricApiMavenUrl(apiVersion) {
@@ -84,12 +129,6 @@ function ensureSystemCa() {
   }
 }
 
-/**
- * Download via Electron Chromium stack when available (trusted system CAs).
- * @param {string} url
- * @param {string} destPath
- * @returns {Promise<boolean>} true if handled
- */
 async function downloadViaElectron(url, destPath) {
   let net;
   try {
@@ -100,7 +139,7 @@ async function downloadViaElectron(url, destPath) {
   if (!net?.fetch) return false;
 
   const res = await net.fetch(url, {
-    headers: { 'User-Agent': 'SpaceClient/1.0 (fabric-api)' },
+    headers: { 'User-Agent': USER_AGENT },
   });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} fetching ${url}`);
@@ -113,12 +152,6 @@ async function downloadViaElectron(url, destPath) {
   return true;
 }
 
-/**
- * Download a file over https/http. Follows redirects.
- * @param {string} url
- * @param {string} destPath
- * @returns {Promise<void>}
- */
 async function downloadFile(url, destPath, redirectsLeft = 5) {
   ensureSystemCa();
 
@@ -132,8 +165,8 @@ async function downloadFile(url, destPath, redirectsLeft = 5) {
     const req = lib.get(
       url,
       {
-        headers: { 'User-Agent': 'SpaceClient/1.0 (fabric-api)' },
-        timeout: 60000,
+        headers: { 'User-Agent': USER_AGENT },
+        timeout: 90000,
       },
       (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
@@ -183,49 +216,49 @@ async function downloadFile(url, destPath, redirectsLeft = 5) {
   });
 }
 
-/**
- * Resolve the first-party Space Client jar (natives preferred, bin/space_rt.jar fallback).
- * @param {string} nativesPath
- * @returns {{ ok: boolean, jarPath?: string, error?: string }}
- */
-function resolveCoreJar(nativesPath = defaultNativesDir()) {
-  const candidates = [
-    path.join(nativesPath, SHIP_NAME),
-    path.join(defaultBinDir(), RT_NAME),
-    path.join(defaultBinDir(), SHIP_NAME),
-  ];
-
-  for (const jarPath of candidates) {
-    if (!fs.existsSync(jarPath)) continue;
-
-    const manifestPath = path.join(path.dirname(jarPath), 'natives.manifest.json');
-    if (path.basename(jarPath) === SHIP_NAME && fs.existsSync(manifestPath)) {
-      try {
-        const manifest = readJsonFile(manifestPath);
-        const expected = manifest?.files?.[SHIP_NAME]?.sha256;
-        if (expected) {
-          const actual = sha256File(jarPath);
-          if (actual.toLowerCase() !== String(expected).toLowerCase()) {
-            return { ok: false, error: 'sha256 mismatch' };
-          }
-        }
-      } catch (err) {
-        return { ok: false, error: `manifest read failed: ${err.message}` };
-      }
-    }
-
-    return { ok: true, jarPath };
+async function fetchJson(url) {
+  ensureSystemCa();
+  let net;
+  try {
+    net = require('electron').net;
+  } catch {
+    net = null;
   }
 
-  return { ok: false, error: `missing ${SHIP_NAME} (and no ${RT_NAME} fallback)` };
+  if (net?.fetch) {
+    const res = await net.fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return res.json();
+  }
+
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('http:') ? http : https;
+    const req = lib.get(url, { headers: { 'User-Agent': USER_AGENT }, timeout: 30000 }, (res) => {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        fetchJson(new URL(res.headers.location, url).toString()).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error(`Timeout for ${url}`)));
+  });
 }
 
-/**
- * Ensure fabric-api jar exists for this Minecraft version under natives/deps.
- * @param {string} mcVersion
- * @param {string} nativesPath
- * @returns {Promise<{ ok: boolean, jarPath?: string, error?: string, downloaded?: boolean }>}
- */
 async function ensureFabricApi(mcVersion, nativesPath = defaultNativesDir()) {
   const apiVersion = FABRIC_API_BY_MC[String(mcVersion || '').trim()];
   if (!apiVersion) {
@@ -258,11 +291,75 @@ async function ensureFabricApi(mcVersion, nativesPath = defaultNativesDir()) {
 }
 
 /**
- * Write a Fabric addMods list file (avoids Windows classpath / backslash pitfalls).
- * @param {string[]} jarPaths
- * @param {string} nativesPath
- * @returns {string} absolute path to the list file
+ * Resolve the best Fabric primary jar for a Modrinth project + MC version.
+ * @param {string} projectId
+ * @param {string} mcVersion
+ * @returns {Promise<{ ok: boolean, file?: { url: string, filename: string, hashes?: object }, error?: string }>}
  */
+async function resolveModrinthJar(projectId, mcVersion) {
+  const url =
+    `https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version` +
+    `?loaders=${encodeURIComponent(JSON.stringify(['fabric']))}` +
+    `&game_versions=${encodeURIComponent(JSON.stringify([mcVersion]))}`;
+
+  try {
+    const versions = await fetchJson(url);
+    if (!Array.isArray(versions) || !versions.length) {
+      return { ok: false, error: `No Fabric build for ${projectId} on ${mcVersion}` };
+    }
+    const preferred =
+      versions.find((v) => v.version_type === 'release') ||
+      versions.find((v) => v.version_type === 'beta') ||
+      versions[0];
+    const file =
+      preferred.files?.find((f) => f.primary) ||
+      preferred.files?.find((f) => String(f.filename || '').endsWith('.jar')) ||
+      preferred.files?.[0];
+    if (!file?.url || !file?.filename) {
+      return { ok: false, error: `No jar file listed for ${projectId}` };
+    }
+    return { ok: true, file };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
+async function ensurePerfMod(modKey, mcVersion, nativesPath) {
+  const meta = PERF_MOD_CATALOG[modKey];
+  if (!meta) return { ok: false, error: `Unknown perf mod: ${modKey}` };
+
+  const cacheDir = path.join(nativesPath, 'perf', mcVersion);
+  fs.mkdirSync(cacheDir, { recursive: true });
+
+  const resolved = await resolveModrinthJar(meta.id, mcVersion);
+  if (!resolved.ok || !resolved.file) {
+    return { ok: false, error: `${meta.name}: ${resolved.error}` };
+  }
+
+  const jarPath = path.join(cacheDir, resolved.file.filename);
+  if (fs.existsSync(jarPath) && fs.statSync(jarPath).size > 0) {
+    return { ok: true, jarPath, name: meta.name, downloaded: false };
+  }
+
+  try {
+    await downloadFile(resolved.file.url, jarPath);
+    if (resolved.file.hashes?.sha512) {
+      const actual = crypto.createHash('sha512').update(fs.readFileSync(jarPath)).digest('hex');
+      if (actual !== resolved.file.hashes.sha512) {
+        try {
+          fs.unlinkSync(jarPath);
+        } catch {
+          /* ignore */
+        }
+        return { ok: false, error: `${meta.name}: sha512 mismatch` };
+      }
+    }
+    return { ok: true, jarPath, name: meta.name, downloaded: true };
+  } catch (err) {
+    return { ok: false, error: `${meta.name}: ${err?.message || String(err)}` };
+  }
+}
+
 function writeAddModsList(jarPaths, nativesPath = defaultNativesDir()) {
   const listPath = path.join(nativesPath, 'fabric-addMods.txt');
   const body = jarPaths.map((p) => path.resolve(p)).join('\n') + '\n';
@@ -271,84 +368,105 @@ function writeAddModsList(jarPaths, nativesPath = defaultNativesDir()) {
   return listPath;
 }
 
+function normalizePackId(packId) {
+  const id = String(packId || 'standard').toLowerCase();
+  return PERF_PACKS[id] ? id : 'standard';
+}
+
 /**
- * @param {{ nativesPath?: string, mcVersion?: string }} [options]
- * @returns {Promise<{
- *   ok: boolean,
- *   jarPath?: string,
- *   fabricApiPath?: string,
- *   addMods?: string[],
- *   jvmArg?: string,
- *   extraClasspath?: string[],
- *   error?: string,
- *   warnings?: string[],
- * }>}
+ * @param {{
+ *   nativesPath?: string,
+ *   mcVersion?: string,
+ *   perfPack?: string,
+ *   spacePlus?: boolean,
+ *   onProgress?: (msg: string) => void,
+ * }} [options]
  */
 async function prepareFabricInjection(options = {}) {
   const nativesPath = options.nativesPath || defaultNativesDir();
   const mcVersion = options.mcVersion || '1.21.1';
   const warnings = [];
+  const log = typeof options.onProgress === 'function' ? options.onProgress : () => {};
 
-  const core = resolveCoreJar(nativesPath);
-  if (!core.ok || !core.jarPath) {
-    return { ok: false, error: core.error || `missing ${SHIP_NAME}`, warnings };
+  let packId = normalizePackId(options.perfPack);
+  let pack = PERF_PACKS[packId];
+
+  if (pack.spacePlusOnly && !options.spacePlus) {
+    warnings.push('Max Boost requires Space+ — falling back to Standard Boost');
+    packId = 'standard';
+    pack = PERF_PACKS.standard;
   }
 
   const api = await ensureFabricApi(mcVersion, nativesPath);
   if (!api.ok || !api.jarPath) {
     return {
       ok: false,
-      jarPath: core.jarPath,
       error: `Fabric API required: ${api.error || 'unavailable'}`,
       warnings,
     };
   }
-
   if (api.downloaded) {
     warnings.push(`Downloaded Fabric API for Minecraft ${mcVersion}`);
+    log('Downloaded Fabric API');
   }
 
-  const addMods = [api.jarPath, core.jarPath];
+  const addMods = [api.jarPath];
+  const resolvedMods = [];
+
+  for (const modKey of pack.mods) {
+    log(`Preparing ${PERF_MOD_CATALOG[modKey]?.name || modKey}…`);
+    const result = await ensurePerfMod(modKey, mcVersion, nativesPath);
+    if (!result.ok || !result.jarPath) {
+      warnings.push(result.error || `Failed ${modKey}`);
+      continue;
+    }
+    if (result.downloaded) {
+      warnings.push(`Downloaded ${result.name}`);
+    }
+    addMods.push(result.jarPath);
+    resolvedMods.push({ key: modKey, name: result.name, jarPath: result.jarPath });
+  }
+
+  // Fabric-only (off pack): still inject Fabric API so loader is consistent.
+  if (packId === 'off') {
+    // api only
+  }
+
   const listPath = writeAddModsList(addMods, nativesPath);
-  // @-list form is the most reliable across Windows path separators.
-  // Prefer forward slashes in the JVM property value to avoid escape pitfalls.
   const listRef = path.resolve(listPath).replace(/\\/g, '/');
   const jvmArg = `-Dfabric.addMods=@${listRef}`;
 
   return {
     ok: true,
-    jarPath: core.jarPath,
+    packId,
+    packLabel: pack.label,
     fabricApiPath: api.jarPath,
     addMods,
+    resolvedMods,
     jvmArg,
     extraClasspath: addMods,
     warnings,
   };
 }
 
-/**
- * Sync resolve used by older callers — core jar only, no Fabric API fetch.
- * Prefer prepareFabricInjection for launch.
- * @returns {{ ok: boolean, jarPath?: string, extraClasspath?: string[], error?: string }}
- */
-function verifyAndResolve(nativesPath = defaultNativesDir()) {
-  const core = resolveCoreJar(nativesPath);
-  if (!core.ok) return core;
-  return {
-    ok: true,
-    jarPath: core.jarPath,
-    extraClasspath: [core.jarPath],
-  };
+/** Legacy no-op shim — core jar no longer required. */
+function verifyAndResolve() {
+  return { ok: true, jarPath: null, extraClasspath: [] };
+}
+
+function resolveCoreJar() {
+  return { ok: false, error: 'space-client-core removed — Space Launcher uses performance packs only' };
 }
 
 module.exports = {
-  SHIP_NAME,
-  RT_NAME,
   FABRIC_API_BY_MC,
+  PERF_PACKS,
+  PERF_MOD_CATALOG,
   defaultNativesDir,
   defaultBinDir,
   verifyAndResolve,
   prepareFabricInjection,
   ensureFabricApi,
   resolveCoreJar,
+  normalizePackId,
 };

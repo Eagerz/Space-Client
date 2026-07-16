@@ -18,7 +18,7 @@ let gameRunning = false;
  * Game Logs panel; only hide the OS console window.
  */
 const originalSpawn = childProcess.spawn;
-childProcess.spawn = function spaceClientSpawn(command, args, options) {
+childProcess.spawn = function spaceLauncherSpawn(command, args, options) {
   const opts = { ...(options || {}) };
   opts.windowsHide = true;
   // Ensure we capture game output for the in-app logs panel.
@@ -29,7 +29,11 @@ childProcess.spawn = function spaceClientSpawn(command, args, options) {
 };
 
 function getMinecraftPath() {
-  return path.join(app.getPath("userData"), "SpaceClient", ".minecraft");
+  const next = path.join(app.getPath("userData"), "SpaceLauncher", ".minecraft");
+  const legacy = path.join(app.getPath("userData"), "SpaceClient", ".minecraft");
+  // Prefer new path; reuse legacy install if the user already has game files there.
+  if (fs.existsSync(next) || !fs.existsSync(legacy)) return next;
+  return legacy;
 }
 
 /**
@@ -74,7 +78,7 @@ function normalizeVersion(version) {
 }
 
 function normalizeLoader(loader) {
-  // Space Client features require Fabric; default to fabric when unset/unknown.
+  // Space Launcher Fabric features require Fabric; default to fabric when unset/unknown.
   const value = String(loader || "fabric").toLowerCase();
   if (value === "vanilla" || value === "none" || value === "off") return "vanilla";
   if (value === "fabric") return "fabric";
@@ -99,65 +103,27 @@ function hideWindow(win) {
 }
 
 /**
- * Resolve a cape texture PNG from the Electron app assets folder.
- * @param {string} capeId
- * @returns {string | null}
- */
-function resolveCapeTexturePath(capeId) {
-  if (!capeId || typeof capeId !== "string") return null;
-  const safe = capeId.replace(/[^a-z0-9\-]/gi, "");
-  if (!safe) return null;
-  const fileName = `${safe}-texture.png`;
-  const candidates = [
-    path.join(__dirname, "src", "assets", "capes", fileName),
-    path.join(app.getAppPath(), "src", "assets", "capes", fileName),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-/**
- * Stage equipped cape into .minecraft/config/space-client/cosmetics for the Fabric core mod.
+ * Stage equipped launcher profile cosmetics manifest (no in-game ClickGUI / core jar).
  * @param {string} gamePath
- * @param {string | null | undefined} capeId
+ * @param {{ badge?: string|null, frame?: string|null, theme?: string|null }} profile
  * @param {(line: string) => void} log
  */
-function stageEquippedCosmetics(gamePath, capeId, log) {
-  const cosmeticsDir = path.join(gamePath, "config", "space-client", "cosmetics");
+function stageEquippedCosmetics(gamePath, profile, log) {
+  const cosmeticsDir = path.join(gamePath, "config", "space-launcher", "cosmetics");
   fs.mkdirSync(cosmeticsDir, { recursive: true });
-  const capePng = path.join(cosmeticsDir, "cape.png");
   const manifestPath = path.join(cosmeticsDir, "equipped.json");
   const manifest = {
-    cape: null,
+    badge: profile?.badge || null,
+    frame: profile?.frame || null,
+    theme: profile?.theme || null,
     updatedAt: new Date().toISOString(),
   };
-
-  if (capeId) {
-    const src = resolveCapeTexturePath(capeId);
-    if (src) {
-      fs.copyFileSync(src, capePng);
-      manifest.cape = capeId;
-      log(`Staged cape texture: ${capeId}`);
-    } else {
-      try {
-        fs.unlinkSync(capePng);
-      } catch {
-        // ignore
-      }
-      log(`Cape texture missing for "${capeId}" — unequipped in-game.`);
-    }
-  } else {
-    try {
-      fs.unlinkSync(capePng);
-    } catch {
-      // ignore
-    }
-    log("No cape equipped — cleared in-game cosmetics stage.");
-  }
-
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  log(
+    manifest.badge || manifest.frame || manifest.theme
+      ? `Staged launcher profile cosmetics (${[manifest.badge, manifest.frame, manifest.theme].filter(Boolean).join(", ")})`
+      : "No profile cosmetics equipped — cleared stage."
+  );
 }
 
 /**
@@ -186,7 +152,14 @@ function createProgressTracker() {
 
 /**
  * @param {Electron.BrowserWindow} win
- * @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null }} options
+ * @param {{
+ *   version?: string,
+ *   loader?: string,
+ *   memoryGb?: number,
+ *   perfPack?: string,
+ *   spacePlus?: boolean,
+ *   equippedProfile?: { badge?: string|null, frame?: string|null, theme?: string|null },
+ * }} options
  */
 async function launchGame(win, options = {}) {
   if (isLaunching || gameRunning) {
@@ -222,7 +195,7 @@ async function launchGame(win, options = {}) {
   send(win, "launch:log", { line: `Preparing launch for ${version} (${loader})…` });
 
   try {
-    stageEquippedCosmetics(gamePath, options.equippedCape, (line) => {
+    stageEquippedCosmetics(gamePath, options.equippedProfile || {}, (line) => {
       send(win, "launch:log", { line });
     });
 
@@ -409,20 +382,25 @@ async function launchGame(win, options = {}) {
     if (loader === "fabric") {
       send(win, "launch:progress", {
         phase: "patch",
-        label: "Preparing Fabric mods…",
+        label: "Preparing performance mods…",
         detail: version,
       });
-      const mod = await modInjection.prepareFabricInjection({ mcVersion: version });
+      const mod = await modInjection.prepareFabricInjection({
+        mcVersion: version,
+        perfPack: options.perfPack || "standard",
+        spacePlus: Boolean(options.spacePlus),
+        onProgress: (msg) => send(win, "launch:log", { line: msg }),
+      });
       for (const warning of mod.warnings || []) {
         send(win, "launch:log", { line: warning });
       }
       if (mod.ok && mod.jvmArg) {
         launchOptions.JVM_ARGS.push(mod.jvmArg);
         send(win, "launch:log", {
-          line: "Fabric Loader enabled — injecting Space Client core + Fabric API from natives.",
+          line: `Fabric Loader — injecting ${mod.packLabel || "performance pack"} (${(mod.addMods || []).length} jars) via natives.`,
         });
-        if (mod.jarPath) {
-          send(win, "launch:log", { line: `Core mod: ${mod.jarPath}` });
+        for (const entry of mod.resolvedMods || []) {
+          send(win, "launch:log", { line: `  • ${entry.name}` });
         }
         if (mod.fabricApiPath) {
           send(win, "launch:log", { line: `Fabric API: ${mod.fabricApiPath}` });
@@ -430,7 +408,7 @@ async function launchGame(win, options = {}) {
       } else {
         const message =
           mod.error ||
-          "Space Client core / Fabric API could not be prepared for injection.";
+          "Fabric API / performance mods could not be prepared for injection.";
         send(win, "launch:log", { line: `Error: ${message}` });
         send(win, "launch:error", { error: message });
         isLaunching = false;

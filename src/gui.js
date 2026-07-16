@@ -1,5 +1,5 @@
 /**
- * Space Client — Interactive GUI layer
+ * Space Launcher — Interactive GUI layer
  * Parallax sky, toasts, command palette, home hub, view polish.
  */
 (function () {
@@ -10,8 +10,8 @@
 
   const QUICK_ACTIONS = [
     { view: "friends", label: "Friends", hint: "Chat & join" },
-    { view: "mods", label: "Mods", hint: "Browse Modrinth" },
-    { view: "cosmetics", label: "Cosmetics", hint: "Capes & pets" },
+    { view: "presets", label: "Boost", hint: "Performance packs" },
+    { view: "cosmetics", label: "Cosmetics", hint: "Badges & themes" },
     { view: "store", label: "Store", hint: "Buy credits" },
   ];
 
@@ -369,7 +369,7 @@
 
     // Seed a welcome activity once
     if (!loadActivity().length) {
-      pushActivity({ kind: "info", text: "Welcome to Space Client — press Ctrl+K to quick-navigate" });
+      pushActivity({ kind: "info", text: "Welcome to Space Launcher — press Ctrl+K to quick-navigate" });
     }
 
     window.addEventListener("space-friends-updated", () => {

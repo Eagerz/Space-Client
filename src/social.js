@@ -1,5 +1,5 @@
 /**
- * Space Client — Friends & Social panel
+ * Space Launcher — Friends & Social panel
  * Persistent client-side friends graph with requests, presence sim, unread DMs.
  * Hooks on window.SpaceSocial remain IPC-ready for a future socket backend.
  */
@@ -107,7 +107,7 @@
     "joining in a sec",
     "nice cape btw",
     "brb — grabbing a snack",
-    "Space Client feels so smooth",
+    "Space Launcher feels so smooth",
     "invite me when you're in",
   ];
 
@@ -322,7 +322,7 @@
     const muted = f.presence === "offline" ? " is-offline" : "";
     const star =
       f.presence === "ingame"
-        ? `<span class="social-space-star" title="Online on Space Client" aria-label="Online on Space Client">✦</span>`
+        ? `<span class="social-space-star" title="Online on Space Launcher" aria-label="Online on Space Launcher">✦</span>`
         : "";
     const unread =
       f.unread > 0
