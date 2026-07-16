@@ -44,7 +44,7 @@
       <button class="nav-btn" data-view="modpacks" type="button" title="Modpacks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
       </button>
-      <button class="nav-btn" data-view="cosmetics" type="button" title="Cosmetics">
+      <button class="nav-btn" data-view="cosmetics" data-mode="client" type="button" title="Cosmetics">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.8 5.7 21l2.3-7-6-4.6h7.6z"/></svg>
       </button>
       <button class="nav-btn" data-view="friends" type="button" title="Friends">
@@ -59,10 +59,10 @@
       <button class="nav-btn" data-view="settings" type="button" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       </button>
-      <button class="nav-btn nav-btn-spaceplus" data-view="spaceplus" type="button" title="Space+">
+      <button class="nav-btn nav-btn-spaceplus" data-view="spaceplus" data-mode="client" type="button" title="Space+">
         <span class="nav-icon-spaceplus" aria-hidden="true"></span>
       </button>
-      <button class="nav-btn nav-btn-store" data-view="store" type="button" title="Store">
+      <button class="nav-btn nav-btn-store" data-view="store" data-mode="client" type="button" title="Store">
         <span class="nav-icon-store" aria-hidden="true"></span>
       </button>
       <div class="sidebar-spacer"></div>
@@ -194,12 +194,15 @@
           </div>
         </div>
         <div class="launch-selectors">
+          <select class="launch-select" id="home-instance" aria-label="Instance"></select>
           <select class="launch-select" id="home-version" aria-label="Minecraft version"></select>
           <select class="launch-select" id="home-loader" aria-label="Mod loader">
             <option value="fabric" selected>Fabric</option>
+            <option value="quilt">Quilt</option>
             <option value="vanilla">Vanilla</option>
           </select>
         </div>
+        <p class="session-expiry-banner" id="session-expiry-banner" hidden role="status"></p>
         <section class="home-news" aria-labelledby="home-news-heading">
           <header class="home-news-header">
             <h2 id="home-news-heading">Latest</h2>
@@ -235,18 +238,43 @@
           </div>
         </header>
         <div class="modrinth-meta" id="modrinth-meta"></div>
-        <div class="modrinth-grid" id="modrinth-grid"></div>
-        <div class="modrinth-pagination" id="modrinth-pagination"></div>
+        <div class="mods-layout">
+          <div class="mods-browse">
+            <div class="modrinth-grid" id="modrinth-grid"></div>
+            <div class="modrinth-pagination" id="modrinth-pagination"></div>
+          </div>
+          <aside class="installed-mods-panel" aria-label="Installed mods">
+            <header class="installed-mods-header">
+              <h3>Installed</h3>
+              <button type="button" class="btn-mod" id="installed-mods-refresh">Refresh</button>
+            </header>
+            <p class="installed-mods-meta" id="installed-mods-meta">No mods installed yet.</p>
+            <div class="installed-mods-list" id="installed-mods-list"></div>
+          </aside>
+        </div>
       </section>
 
       <section class="view" id="view-modpacks">
-        <header class="section-header">
-          <h2>Modpacks</h2>
-          <p>Browse and install modpacks from <a class="modrinth-link" href="https://modrinth.com/modpacks" target="_blank" rel="noopener">Modrinth</a></p>
+        <header class="mods-header">
+          <div class="section-header">
+            <h2>Modpacks</h2>
+            <p>Browse and install modpacks from <a class="modrinth-link" href="https://modrinth.com/modpacks" target="_blank" rel="noopener">Modrinth</a></p>
+          </div>
+          <div class="mods-toolbar">
+            <div class="mods-search-wrap">
+              <input type="search" class="mods-search" id="modpack-search" placeholder="Search modpacks…" autocomplete="off" />
+            </div>
+            <select class="select-field mods-filter" id="modpack-loader" aria-label="Mod loader">
+              <option value="fabric" selected>Fabric</option>
+              <option value="quilt">Quilt</option>
+              <option value="forge">Forge</option>
+              <option value="neoforge">NeoForge</option>
+            </select>
+          </div>
         </header>
-        <div class="modpacks-placeholder">
-          <p>Modpack management coming soon.</p>
-        </div>
+        <div class="modrinth-meta" id="modpack-meta"></div>
+        <div class="modrinth-grid" id="modpack-grid"></div>
+        <div class="modrinth-pagination" id="modpack-pagination"></div>
       </section>
 
       <section class="view" id="view-cosmetics">
@@ -370,13 +398,14 @@
       </section>
 
       <section class="view" id="view-presets">
-        <header class="section-header">
-          <h2>Presets</h2>
-          <p>Save and switch between launch configurations</p>
+        <header class="section-header presets-header-row">
+          <div>
+            <h2>Presets</h2>
+            <p>Save and switch between launch configurations</p>
+          </div>
+          <button type="button" class="btn-mod primary" id="preset-create-btn">Save current as preset</button>
         </header>
-        <div class="presets-placeholder">
-          <p>Preset management coming soon.</p>
-        </div>
+        <div class="presets-list" id="presets-list"></div>
       </section>
 
       <section class="view" id="view-spaceplus">
@@ -681,12 +710,43 @@
         <div class="settings-list">
           <div class="settings-row">
             <div>
+              <div class="settings-row-label">App Mode</div>
+              <div class="settings-row-desc">Client keeps cosmetics &amp; Space+. Launcher focuses on instances and mods.</div>
+            </div>
+            <select class="select-field" id="app-mode-select" aria-label="App mode">
+              <option value="client">Client</option>
+              <option value="launcher">Launcher</option>
+            </select>
+          </div>
+          <div class="settings-row settings-row-stack">
+            <div>
+              <div class="settings-row-label">Instances</div>
+              <div class="settings-row-desc">Named profiles with separate mods, versions, and Java settings</div>
+            </div>
+            <div class="instances-manager" id="instances-manager"></div>
+            <div class="instances-actions">
+              <button type="button" class="btn-mod primary" id="instance-create-btn">New instance</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
               <div class="settings-row-label">RAM Allocation</div>
-              <div class="settings-row-desc">Memory assigned to the game</div>
+              <div class="settings-row-desc">Memory assigned to the active instance</div>
             </div>
             <div style="width: 180px">
               <div class="slider-label"><span>GB</span><span id="ram-value">4 GB</span></div>
               <input type="range" id="ram-slider" min="2" max="16" step="1" value="4" />
+            </div>
+          </div>
+          <div class="settings-row settings-row-stack">
+            <div>
+              <div class="settings-row-label">Custom Java Path</div>
+              <div class="settings-row-desc">Optional path to java / javaw for the active instance (leave empty for auto JRE)</div>
+            </div>
+            <div class="java-path-row">
+              <input type="text" class="select-field java-path-input" id="java-path-input" placeholder="Auto-detect JRE" spellcheck="false" />
+              <button type="button" class="btn-mod" id="java-path-browse">Browse</button>
+              <button type="button" class="btn-mod" id="java-path-clear">Clear</button>
             </div>
           </div>
           <div class="settings-row settings-row-stack">
@@ -778,10 +838,17 @@
               </span>
               <span class="btn-ms-spinner" aria-hidden="true"></span>
             </button>
+            <button type="button" class="btn-account btn-add-account hidden" id="account-add-btn">Add another account</button>
             <button type="button" class="btn-account btn-signout hidden" id="account-signout-btn">Sign out</button>
           </aside>
 
           <div class="account-sections">
+            <div class="account-section">
+              <h3 class="account-section-title">Accounts</h3>
+              <p class="account-section-desc">Switch between saved Microsoft accounts on this device.</p>
+              <div class="account-switcher" id="account-switcher"></div>
+            </div>
+
             <div class="account-section">
               <h3 class="account-section-title">Microsoft Account</h3>
               <p class="account-section-desc">Link your Xbox / Microsoft account to launch Minecraft.</p>
@@ -814,7 +881,7 @@
 
             <div class="account-section">
               <h3 class="account-section-title">Session</h3>
-              <p class="account-section-desc">Authentication tokens and session details.</p>
+              <p class="account-section-desc">Authentication tokens refresh automatically before launch.</p>
               <div class="account-row">
                 <span class="account-row-label">Access token</span>
                 <span class="account-row-value muted">Hidden</span>
@@ -823,6 +890,11 @@
                 <span class="account-row-label">Expires</span>
                 <span class="account-row-value muted" id="account-session-expires">—</span>
               </div>
+              <div class="account-row">
+                <span class="account-row-label">Status</span>
+                <span class="account-row-value muted" id="account-session-status">—</span>
+              </div>
+              <button type="button" class="btn-mod" id="account-refresh-btn">Refresh session</button>
             </div>
 
             <div class="account-section account-section-placeholder">
@@ -945,7 +1017,8 @@
   </div>
 </aside>
 
-<script src="modrinth.js"></script>
+  <script src="modrinth.js"></script>
+  <script src="launcher-features.js"></script>
 <script src="social.js"></script>
 <script src="assistant.js"></script>
 <script src="renderer.js"></script>

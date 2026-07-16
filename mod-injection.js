@@ -19,6 +19,9 @@ const FABRIC_API_PREFIX = 'fabric-api-';
 
 /** Pinned Fabric API builds for Space Client–supported versions. */
 const FABRIC_API_BY_MC = {
+  '1.20.1': '0.92.2+1.20.1',
+  '1.20.4': '0.97.0+1.20.4',
+  '1.20.6': '0.100.4+1.20.6',
   '1.21.1': '0.116.13+1.21.1',
   '1.21': '0.102.0+1.21',
   '1.21.2': '0.106.1+1.21.2',

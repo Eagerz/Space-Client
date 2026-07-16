@@ -5121,3 +5121,190 @@ body.clear-panels .mod-detail-backdrop {
     grid-template-rows: minmax(180px, 32%) 1fr;
   }
 }
+
+/* ─── Launcher essentials ─── */
+.session-expiry-banner {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--sc-radius-md, 10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sc-text-muted);
+  font-size: 13px;
+}
+.session-expiry-banner[data-tone="warn"] {
+  border-color: rgba(234, 179, 8, 0.35);
+  color: #f5d76e;
+}
+.session-expiry-banner[data-tone="error"] {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+.session-expiry-banner[data-tone="ok"] {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+.mods-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+.installed-mods-panel {
+  position: sticky;
+  top: 0;
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-surface);
+  padding: 14px;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+.installed-mods-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.installed-mods-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.installed-mods-meta {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--sc-text-muted);
+}
+.installed-mod-row,
+.instance-row,
+.account-switcher-row,
+.preset-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius-md, 10px);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 8px;
+}
+.installed-mod-row.disabled {
+  opacity: 0.55;
+}
+.installed-mod-meta,
+.instance-row-main,
+.account-switcher-meta,
+.preset-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.installed-mod-meta strong,
+.instance-row-main strong,
+.account-switcher-meta strong,
+.preset-card-body h3 {
+  font-size: 13px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.installed-mod-meta span,
+.instance-row-main span,
+.account-switcher-meta span,
+.preset-card-body p {
+  font-size: 11px;
+  color: var(--sc-text-muted);
+  margin: 0;
+}
+.installed-mod-actions,
+.instance-row-actions,
+.account-switcher-actions,
+.preset-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.instance-row.active,
+.account-switcher-row.active,
+.preset-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.instance-active-badge {
+  font-size: 11px;
+  color: var(--sc-accent, #fff);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+.instances-manager,
+.presets-list,
+.account-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+.instances-actions {
+  margin-top: 10px;
+}
+.java-path-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+.java-path-input {
+  flex: 1;
+  min-width: 0;
+}
+.presets-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.presets-empty,
+.instances-empty,
+.account-switcher-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--sc-text-muted);
+  border: 1px dashed var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  font-size: 13px;
+}
+.preset-card {
+  align-items: stretch;
+}
+.preset-notes {
+  margin-top: 4px !important;
+}
+.account-switcher-row img {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.btn-add-account {
+  margin-top: 8px;
+}
+body[data-app-mode="launcher"] [data-mode="client"] {
+  display: none !important;
+}
+
+@media (max-width: 1100px) {
+  .mods-layout {
+    grid-template-columns: 1fr;
+  }
+  .installed-mods-panel {
+    position: static;
+    max-height: none;
+  }
+}

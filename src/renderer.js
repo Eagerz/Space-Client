@@ -1,4 +1,3 @@
-const INSTALLED_KEY = "space-client-installed-mods";
 const ACCENT_KEY = "space-client-accent";
 const BLUR_BG_KEY = "space-client-blur-bg";
 const CLEAR_PANELS_KEY = "space-client-clear-panels";
@@ -26,15 +25,12 @@ const ACCENT_COLORS = [
 ];
 
 const MINECRAFT_VERSIONS = [
-  "1.18", "1.18.1", "1.18.2",
-  "1.19", "1.19.1", "1.19.2", "1.19.3", "1.19.4",
-  "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6",
-  "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4",
-  "1.22", "1.22.1", "1.22.2",
-  "1.23", "1.23.1",
-  "1.24", "1.24.1",
-  "1.25", "1.25.1",
-  "1.26", "1.26.1", "1.26.2",
+  "1.16.5",
+  "1.17.1",
+  "1.18.1", "1.18.2",
+  "1.19", "1.19.2", "1.19.3", "1.19.4",
+  "1.20", "1.20.1", "1.20.2", "1.20.4", "1.20.6",
+  "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8",
 ];
 
 const modrinthState = {
@@ -48,6 +44,9 @@ const modrinthState = {
   loading: false,
   loaded: false,
 };
+
+// Expose for launcher-features.js instance sync
+window.modrinthState = modrinthState;
 
 let modDetailOpen = false;
 
@@ -69,7 +68,7 @@ function renderTagList(items, max = 8) {
 
 function setInstallButtonState(btn, installed) {
   if (!btn) return;
-  btn.textContent = installed ? "Installed" : "Install";
+  btn.textContent = installed ? "Remove" : "Install";
   btn.classList.toggle("installed", installed);
   btn.classList.toggle("primary", !installed);
 }
@@ -420,7 +419,14 @@ const PROFILE_ROLES = {
 };
 
 /** Latest auth snapshot for ownership / role checks. */
-let currentAuthState = { isLoggedIn: false, profile: null };
+let currentAuthState = {
+  isLoggedIn: false,
+  profile: null,
+  accounts: [],
+  activeId: null,
+  expired: false,
+  needsRefresh: false,
+};
 
 /** Tags that are rarity labels — never shown on cape/pet cards. */
 const RARITY_TAG_NAMES = new Set([
@@ -844,30 +850,26 @@ function initCosmeticDetailPanel() {
 }
 
 function getInstalledMods() {
-  try {
-    return JSON.parse(localStorage.getItem(INSTALLED_KEY) || "{}");
-  } catch {
-    return {};
-  }
+  // Persistence lives in the main-process mod manager / instance folder.
+  return {};
 }
 
-function setInstalledMod(projectId, data) {
-  const installed = getInstalledMods();
-  installed[projectId] = data;
-  localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed));
-  updateActiveModCount();
+function setInstalledMod(_projectId, _data) {
+  // Persistence is handled by mod-manager in the main process.
 }
 
-function removeInstalledMod(projectId) {
-  const installed = getInstalledMods();
-  delete installed[projectId];
-  localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed));
-  updateActiveModCount();
+function removeInstalledMod(_projectId) {
+  // Persistence is handled by mod-manager in the main process.
 }
 
 function isModInstalled(projectId) {
-  return Boolean(getInstalledMods()[projectId]);
+  if (window.LauncherFeatures?.isModInstalled) {
+    return window.LauncherFeatures.isModInstalled(projectId);
+  }
+  return false;
 }
+
+window.syncInstallUI = syncInstallUI;
 
 function formatFooterVersion() {
   const loaderLabel = modrinthState.homeLoader === "vanilla" ? "Vanilla" : "Fabric";
@@ -898,18 +900,28 @@ function initLaunchSelectors() {
   loaderSelect.value = modrinthState.homeLoader;
   syncLaunchToApp();
 
-  versionSelect.addEventListener("change", () => {
+  versionSelect.addEventListener("change", async () => {
     modrinthState.version = versionSelect.value;
     syncLaunchToApp();
+    const active = window.LauncherFeatures?.getActiveInstance?.();
+    if (active && window.electronAPI?.updateInstance) {
+      await window.electronAPI.updateInstance(active.id, { version: modrinthState.version });
+      await window.LauncherFeatures.refreshInstances?.();
+    }
     if (modrinthState.loaded) {
       modrinthState.offset = 0;
       fetchModrinthMods();
     }
   });
 
-  loaderSelect.addEventListener("change", () => {
+  loaderSelect.addEventListener("change", async () => {
     modrinthState.homeLoader = loaderSelect.value;
     syncLaunchToApp();
+    const active = window.LauncherFeatures?.getActiveInstance?.();
+    if (active && window.electronAPI?.updateInstance) {
+      await window.electronAPI.updateInstance(active.id, { loader: modrinthState.homeLoader });
+      await window.LauncherFeatures.refreshInstances?.();
+    }
     if (modrinthState.loaded) {
       modrinthState.offset = 0;
       fetchModrinthMods();
@@ -939,7 +951,7 @@ function renderModrinthCard(hit) {
         </div>
         <div class="modrinth-actions">
           <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" data-install="${hit.project_id}" data-slug="${hit.slug}">
-            ${installed ? "Installed" : "Install"}
+            ${installed ? "Remove" : "Install"}
           </button>
           <button type="button" class="btn-mod" data-view-mod="${escapeHtml(hit.slug)}" data-project-id="${hit.project_id}" data-author="${escapeHtml(hit.author)}">View</button>
         </div>
@@ -1020,8 +1032,27 @@ async function fetchModrinthMods() {
 }
 
 async function handleModInstall(projectId, slug, btn) {
+  const api = window.electronAPI;
+  if (!api?.installMod) {
+    btn.textContent = "Unavailable";
+    setTimeout(() => setInstallButtonState(btn, false), 2000);
+    return;
+  }
+
   if (isModInstalled(projectId)) {
-    removeInstalledMod(projectId);
+    btn.disabled = true;
+    btn.textContent = "Removing…";
+    const result = await api.removeMod({
+      projectId,
+      instanceId: window.LauncherFeatures?.getInstanceState?.()?.activeId,
+    });
+    btn.disabled = false;
+    if (!result?.success) {
+      btn.textContent = "Failed";
+      setTimeout(() => setInstallButtonState(btn, true), 2000);
+      return;
+    }
+    await window.LauncherFeatures?.refreshInstalledMods?.();
     syncInstallUI(projectId, false);
     return;
   }
@@ -1030,17 +1061,18 @@ async function handleModInstall(projectId, slug, btn) {
   btn.textContent = "Installing…";
 
   try {
-    const version = await Modrinth.getCompatibleVersion(projectId, modrinthState.loader, modrinthState.version);
-    if (!version) throw new Error("No compatible version found");
-
-    setInstalledMod(projectId, {
+    const active = window.LauncherFeatures?.getActiveInstance?.();
+    const result = await api.installMod({
+      projectId,
       slug,
-      title: version.name,
-      versionId: version.id,
-      versionNumber: version.version_number,
-      installedAt: Date.now(),
+      loader: modrinthState.loader === "vanilla" ? "fabric" : modrinthState.loader,
+      gameVersion: modrinthState.version,
+      instanceId: active?.id,
     });
 
+    if (!result?.success) throw new Error(result?.error || "Install failed");
+
+    await window.LauncherFeatures?.refreshInstalledMods?.();
     syncInstallUI(projectId, true);
   } catch (err) {
     document.querySelectorAll(`[data-install="${projectId}"]`).forEach((installBtn) => {
@@ -1051,6 +1083,7 @@ async function handleModInstall(projectId, slug, btn) {
   } finally {
     document.querySelectorAll(`[data-install="${projectId}"]`).forEach((installBtn) => {
       installBtn.disabled = false;
+      if (isModInstalled(projectId)) setInstallButtonState(installBtn, true);
     });
   }
 }
@@ -1106,7 +1139,7 @@ function renderModDetailContent(project, { author } = {}) {
     ${gameVersions.length ? `<div class="mod-detail-section"><h3>Game versions</h3><div class="mod-detail-tags">${renderTagList(gameVersions, 12)}</div></div>` : ""}
     <div class="mod-detail-actions">
       <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" data-install="${project.id}" data-slug="${escapeHtml(project.slug)}">
-        ${installed ? "Installed" : "Install"}
+        ${installed ? "Remove" : "Install"}
       </button>
     </div>
     <a class="mod-detail-external" href="${Modrinth.projectUrl(project.slug)}" target="_blank" rel="noopener">View on Modrinth ↗</a>`;
@@ -1230,10 +1263,16 @@ function openSpacePlusFromCosmetics() {
 
 function updateTitlebarPlayer(state) {
   currentAuthState = {
-    isLoggedIn: Boolean(state?.isLoggedIn && state?.profile),
+    isLoggedIn: Boolean(state?.isLoggedIn && state?.profile && !state?.profile?.expired),
     profile: state?.profile || null,
+    accounts: state?.accounts || currentAuthState.accounts || [],
+    activeId: state?.activeId || state?.profile?.uuid || currentAuthState.activeId || null,
+    expired: Boolean(state?.expired || state?.profile?.expired),
+    needsRefresh: Boolean(state?.needsRefresh || state?.profile?.needsRefresh),
   };
   updateHeroGreeting(state);
+  window.LauncherFeatures?.syncSessionBanner?.(currentAuthState);
+  window.LauncherFeatures?.renderAccountSwitcher?.(currentAuthState);
 
   const nameEl = document.getElementById("titlebar-player-name");
   const dotEl = document.getElementById("titlebar-status-dot");
@@ -1334,6 +1373,7 @@ function initNavigation() {
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (btn.hidden) return;
       const viewId = btn.dataset.view;
       navBtns.forEach((b) => b.classList.toggle("active", b === btn));
       views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
@@ -1341,6 +1381,18 @@ function initNavigation() {
       if (viewId === "mods" && !modrinthState.loaded && !modrinthState.loading) {
         syncModrinthFiltersFromSettings();
         fetchModrinthMods();
+      }
+      if (viewId === "mods") {
+        window.LauncherFeatures?.refreshInstalledMods?.();
+      }
+      if (viewId === "modpacks") {
+        window.LauncherFeatures?.fetchModpacks?.();
+      }
+      if (viewId === "presets") {
+        window.LauncherFeatures?.refreshPresets?.();
+      }
+      if (viewId === "settings") {
+        window.LauncherFeatures?.refreshInstances?.();
       }
     });
   });
@@ -1480,13 +1532,22 @@ function initAccount() {
 
   function applyAuthState(state) {
     currentAuthState = {
-      isLoggedIn: Boolean(state?.isLoggedIn && state?.profile),
+      isLoggedIn: Boolean(state?.isLoggedIn && state?.profile && !state?.profile?.expired),
       profile: state?.profile || null,
+      accounts: state?.accounts || [],
+      activeId: state?.activeId || state?.profile?.uuid || null,
+      expired: Boolean(state?.expired || state?.profile?.expired),
+      needsRefresh: Boolean(state?.needsRefresh || state?.profile?.needsRefresh),
     };
 
     const loggedIn = currentAuthState.isLoggedIn;
     const profile = currentAuthState.profile;
     const role = loggedIn ? getPlayerRole(profile?.username) : null;
+    const addAccountBtn = document.getElementById("account-add-btn");
+    const sessionStatus = document.getElementById("account-session-status");
+
+    window.LauncherFeatures?.syncSessionBanner?.(currentAuthState);
+    window.LauncherFeatures?.renderAccountSwitcher?.(currentAuthState);
 
     const avatar = document.getElementById("account-avatar");
     const username = document.getElementById("account-username");
@@ -1534,6 +1595,12 @@ function initAccount() {
         mcUuid.classList.remove("muted");
       }
       if (sessionExpires) sessionExpires.textContent = formatExpires(profile.expiresAt);
+      if (sessionStatus) {
+        if (profile.expired) sessionStatus.textContent = "Expired — sign in again";
+        else if (profile.needsRefresh) sessionStatus.textContent = "Refresh recommended";
+        else sessionStatus.textContent = "Valid";
+        sessionStatus.classList.toggle("muted", Boolean(profile.expired));
+      }
 
       if (roleBadge) {
         if (role) {
@@ -1558,6 +1625,7 @@ function initAccount() {
 
       signInBtn?.classList.add("hidden");
       signOutBtnEl?.classList.remove("hidden");
+      addAccountBtn?.classList.remove("hidden");
       accountSidebar?.classList.add("logged-in");
     } else {
       if (avatar) {
@@ -1566,24 +1634,28 @@ function initAccount() {
         avatar.src = "https://mc-heads.net/avatar/MHF_Steve/96";
       }
       if (username) username.textContent = "Guest";
-      if (email) email.textContent = "Not signed in";
+      if (email) email.textContent = currentAuthState.expired ? "Session expired" : "Not signed in";
       if (status) {
-        status.textContent = "Offline";
+        status.textContent = currentAuthState.expired ? "Expired" : "Offline";
         status.classList.remove("online");
       }
       if (msStatus) {
-        msStatus.textContent = "Not connected";
+        msStatus.textContent = currentAuthState.expired ? "Session expired" : "Not connected";
         msStatus.classList.add("muted");
       }
       if (mcUsername) {
-        mcUsername.textContent = "—";
+        mcUsername.textContent = profile?.username || "—";
         mcUsername.classList.add("muted");
       }
       if (mcUuid) {
-        mcUuid.textContent = "—";
+        mcUuid.textContent = profile?.uuid || "—";
         mcUuid.classList.add("muted");
       }
-      if (sessionExpires) sessionExpires.textContent = "—";
+      if (sessionExpires) sessionExpires.textContent = profile?.expiresAt ? formatExpires(profile.expiresAt) : "—";
+      if (sessionStatus) {
+        sessionStatus.textContent = currentAuthState.expired ? "Expired" : "—";
+        sessionStatus.classList.add("muted");
+      }
       if (roleBadge) {
         roleBadge.hidden = true;
         roleBadge.textContent = "";
@@ -1600,6 +1672,7 @@ function initAccount() {
 
       signInBtn?.classList.remove("hidden", "loading");
       signOutBtnEl?.classList.add("hidden");
+      addAccountBtn?.classList.add("hidden");
       accountSidebar?.classList.remove("logged-in");
       setSignInLoading(false);
       localStorage.removeItem(IN_GAME_KEY);
@@ -1620,6 +1693,8 @@ function initAccount() {
       applyAuthState({
         isLoggedIn: result?.success,
         profile: result?.profile ?? null,
+        accounts: result?.accounts,
+        activeId: result?.activeId,
       });
     } catch (err) {
       console.error("Login error:", err);
@@ -1630,8 +1705,13 @@ function initAccount() {
   });
 
   signOutBtnEl?.addEventListener("click", async () => {
-    await api.logout();
-    applyAuthState({ isLoggedIn: false, profile: null });
+    const result = await api.logout();
+    applyAuthState({
+      isLoggedIn: false,
+      profile: null,
+      accounts: result?.accounts || [],
+      activeId: result?.activeId || null,
+    });
   });
 
   api.getAuthProfile().then(applyAuthState);
@@ -1706,6 +1786,8 @@ function applyRamSetting(gb) {
   return value;
 }
 
+window.applyRamSetting = applyRamSetting;
+
 function initSettings() {
   const accentPicker = document.getElementById("accent-picker");
   const blurToggle = document.getElementById("blur-bg-toggle");
@@ -1757,8 +1839,13 @@ function initSettings() {
     });
   }
 
-  ramSlider?.addEventListener("input", () => {
-    applyRamSetting(ramSlider.value);
+  ramSlider?.addEventListener("input", async () => {
+    const value = applyRamSetting(ramSlider.value);
+    const active = window.LauncherFeatures?.getActiveInstance?.();
+    if (active && window.electronAPI?.updateInstance) {
+      await window.electronAPI.updateInstance(active.id, { memoryGb: value });
+      await window.LauncherFeatures.refreshInstances?.();
+    }
   });
 
   applyRamSetting(getRamGb());
@@ -2847,9 +2934,21 @@ function initPlayButton() {
       "fabric";
     const memoryGb = getRamGb();
     const equippedCape = getEquippedCosmetics().capes || null;
+    const active = window.LauncherFeatures?.getActiveInstance?.();
+    const javaPath =
+      document.getElementById("java-path-input")?.value?.trim() ||
+      active?.javaPath ||
+      null;
 
     try {
-      const result = await api.launchGame({ version, loader, memoryGb, equippedCape });
+      const result = await api.launchGame({
+        version,
+        loader,
+        memoryGb,
+        equippedCape,
+        instanceId: active?.id,
+        javaPath,
+      });
       if (!result?.success) {
         launching = false;
         setLaunchOverlayState("failed");
@@ -2860,6 +2959,9 @@ function initPlayButton() {
           speed: 0,
         });
         appendLaunchConsoleLine(`Error: ${result?.error || "Could not start Minecraft."}`);
+        if (result?.expired) {
+          window.LauncherFeatures?.syncSessionBanner?.({ expired: true });
+        }
         resetPlayButton(btn, { loggedIn: true });
       }
     } catch (err) {
@@ -2900,4 +3002,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAutoUpdaterUI();
   initPlayButton();
   updateActiveModCount();
+  await window.LauncherFeatures?.init?.();
 });

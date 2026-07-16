@@ -15,13 +15,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getAuthProfile: () => ipcRenderer.invoke("auth:get-profile"),
   isLoggedIn: () => ipcRenderer.invoke("auth:is-logged-in"),
   logout: () => ipcRenderer.invoke("auth:logout"),
+  refreshAuth: (opts) => ipcRenderer.invoke("auth:refresh", opts || {}),
+  listAccounts: () => ipcRenderer.invoke("auth:list-accounts"),
+  setActiveAccount: (id) => ipcRenderer.invoke("auth:set-active-account", id),
+  removeAccount: (id) => ipcRenderer.invoke("auth:remove-account", id),
   onAuthStateChanged: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on("auth-state-changed", listener);
     return () => ipcRenderer.removeListener("auth-state-changed", listener);
   },
 
-  /** @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null }} options */
+  /** @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null, instanceId?: string, javaPath?: string | null }} options */
   launchGame: (options) => ipcRenderer.invoke("launch:start", options),
   isLaunchRunning: () => ipcRenderer.invoke("launch:is-running"),
   onLaunchProgress: (callback) => {
@@ -49,6 +53,32 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("launch:log", listener);
     return () => ipcRenderer.removeListener("launch:log", listener);
   },
+
+  listInstances: () => ipcRenderer.invoke("instances:list"),
+  getActiveInstance: () => ipcRenderer.invoke("instances:get-active"),
+  setActiveInstance: (id) => ipcRenderer.invoke("instances:set-active", id),
+  createInstance: (input) => ipcRenderer.invoke("instances:create", input),
+  updateInstance: (id, patch) => ipcRenderer.invoke("instances:update", id, patch),
+  deleteInstance: (id) => ipcRenderer.invoke("instances:delete", id),
+  duplicateInstance: (id) => ipcRenderer.invoke("instances:duplicate", id),
+
+  listInstalledMods: (instanceId) => ipcRenderer.invoke("mods:list", instanceId),
+  installMod: (payload) => ipcRenderer.invoke("mods:install", payload),
+  removeMod: (payload) => ipcRenderer.invoke("mods:remove", payload),
+  setModEnabled: (payload) => ipcRenderer.invoke("mods:set-enabled", payload),
+  installModpack: (payload) => ipcRenderer.invoke("mods:install-modpack", payload),
+  onModsProgress: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("mods:progress", listener);
+    return () => ipcRenderer.removeListener("mods:progress", listener);
+  },
+
+  listPresets: () => ipcRenderer.invoke("presets:list"),
+  createPreset: (input) => ipcRenderer.invoke("presets:create", input),
+  updatePreset: (id, patch) => ipcRenderer.invoke("presets:update", id, patch),
+  deletePreset: (id) => ipcRenderer.invoke("presets:delete", id),
+
+  pickJavaPath: () => ipcRenderer.invoke("java:pick-path"),
 
   /** Open Stripe Checkout URL in the system browser (PCI-safe). */
   openPaymentPortal: (url) => ipcRenderer.invoke("payments:open-external", url),

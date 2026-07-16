@@ -6,6 +6,7 @@ const { pathToFileURL } = require("url");
 const { Launch } = require("minecraft-java-core");
 const authSession = require("./auth-session");
 const modInjection = require("./mod-injection");
+const instances = require("./instances");
 
 /** @type {import("minecraft-java-core").default | null} */
 let activeLauncher = null;
@@ -28,16 +29,18 @@ childProcess.spawn = function spaceClientSpawn(command, args, options) {
   return originalSpawn.call(this, command, args, opts);
 };
 
-function getMinecraftPath() {
-  return path.join(app.getPath("userData"), "SpaceClient", ".minecraft");
+function getMinecraftPath(instanceId) {
+  return instances.getGamePath(instanceId);
 }
 
 /**
  * Map stored electron-mc-auth session into minecraft-java-core authenticator shape.
  */
 function buildAuthenticator() {
-  const session = authSession.loadSession();
-  if (!session || !authSession.isLoggedIn()) return null;
+  const session = authSession.getActiveAccount?.() || authSession.loadSession();
+  if (!session) return null;
+  // Allow slightly expired sessions — caller should refresh first.
+  if (!session.access_token || !session.name || !session.id) return null;
 
   const expiresAt = session.savedAt && session.expires_in
     ? session.savedAt + session.expires_in * 1000
@@ -74,11 +77,20 @@ function normalizeVersion(version) {
 }
 
 function normalizeLoader(loader) {
-  // Space Client features require Fabric; default to fabric when unset/unknown.
+  // Space Client cosmetics/HUD require Fabric; vanilla and quilt also supported for launcher mode.
   const value = String(loader || "fabric").toLowerCase();
   if (value === "vanilla" || value === "none" || value === "off") return "vanilla";
+  if (value === "quilt") return "quilt";
   if (value === "fabric") return "fabric";
   return "fabric";
+}
+
+function resolveJavaPath(javaPath) {
+  if (!javaPath || typeof javaPath !== "string") return null;
+  const trimmed = javaPath.trim();
+  if (!trimmed) return null;
+  if (!fs.existsSync(trimmed)) return null;
+  return trimmed;
 }
 
 function send(win, channel, payload) {
@@ -186,28 +198,41 @@ function createProgressTracker() {
 
 /**
  * @param {Electron.BrowserWindow} win
- * @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null }} options
+ * @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null, instanceId?: string, javaPath?: string | null }} options
  */
 async function launchGame(win, options = {}) {
   if (isLaunching || gameRunning) {
     return { success: false, error: "A launch is already in progress or Minecraft is running." };
   }
 
-  if (!authSession.isLoggedIn()) {
+  const authenticator = buildAuthenticator();
+  if (!authenticator?.access_token || !authenticator?.name || !authenticator?.uuid) {
     return { success: false, error: "Sign in with Microsoft before playing." };
   }
 
-  const authenticator = buildAuthenticator();
-  if (!authenticator?.access_token || !authenticator?.name || !authenticator?.uuid) {
-    return { success: false, error: "Invalid authentication session. Please sign in again." };
+  const active = instances.getActiveInstance();
+  const instanceId = options.instanceId || active?.id;
+  if (instanceId && options.instanceId) {
+    instances.setActiveInstance(instanceId);
   }
 
-  const version = normalizeVersion(options.version);
-  const loader = normalizeLoader(options.loader);
-  const memoryGb = clampMemoryGb(options.memoryGb);
+  const version = normalizeVersion(options.version || active?.version);
+  const loader = normalizeLoader(options.loader || active?.loader);
+  const memoryGb = clampMemoryGb(options.memoryGb ?? active?.memoryGb);
   const memoryMinGb = Math.max(1, Math.min(memoryGb, Math.floor(memoryGb / 2) || 2));
-  const gamePath = getMinecraftPath();
+  const javaPath = resolveJavaPath(options.javaPath ?? active?.javaPath);
+  const gamePath = getMinecraftPath(instanceId);
   const trackPercent = createProgressTracker();
+
+  // Persist launch choices onto the active instance for next time.
+  if (instanceId) {
+    instances.updateInstance(instanceId, {
+      version,
+      loader,
+      memoryGb,
+      javaPath: javaPath || active?.javaPath || null,
+    });
+  }
 
   isLaunching = true;
   let hiddenForGame = false;
@@ -383,8 +408,8 @@ async function launchGame(win, options = {}) {
       ignored: ["config", "logs", "resourcepacks", "options.txt", "optionsof.txt", "saves"],
       loader: {
         path: "./loader",
-        enable: loader === "fabric",
-        type: loader === "fabric" ? "fabric" : null,
+        enable: loader === "fabric" || loader === "quilt",
+        type: loader === "fabric" || loader === "quilt" ? loader : null,
         build: "latest",
       },
       memory: {
@@ -392,12 +417,17 @@ async function launchGame(win, options = {}) {
         max: `${memoryGb}G`,
       },
       java: {
-        path: null,
+        path: javaPath,
         version: null,
         type: "jre",
       },
       JVM_ARGS: [],
     };
+
+    if (javaPath) {
+      send(win, "launch:log", { line: `Using custom Java: ${javaPath}` });
+    }
+    send(win, "launch:log", { line: `Instance: ${active?.name || instanceId || "default"} → ${gamePath}` });
 
     // Windows: bare `C:/...xml` is treated as an invalid URL protocol by Log4j
     // ("unknown protocol: c"). Prefer a proper file:// URI when the config exists.
@@ -428,15 +458,18 @@ async function launchGame(win, options = {}) {
           send(win, "launch:log", { line: `Fabric API: ${mod.fabricApiPath}` });
         }
       } else {
+        // Launcher mode: allow Fabric without Space Client core on unsupported versions.
         const message =
           mod.error ||
           "Space Client core / Fabric API could not be prepared for injection.";
-        send(win, "launch:log", { line: `Error: ${message}` });
-        send(win, "launch:error", { error: message });
-        isLaunching = false;
-        restoreWindow(win);
-        return { success: false, error: message };
+        send(win, "launch:log", {
+          line: `Warning: ${message} Continuing with Fabric + installed mods only.`,
+        });
       }
+    } else if (loader === "quilt") {
+      send(win, "launch:log", {
+        line: "Quilt loader selected — Space Client core injection is Fabric-only; using instance mods.",
+      });
     }
 
     send(win, "launch:progress", {
