@@ -1221,7 +1221,15 @@ function navigateToView(viewId) {
   if (!navBtn) return;
   document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.toggle("active", b === navBtn));
   views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
+
+  if (viewId === "mods" && !modrinthState.loaded && !modrinthState.loading) {
+    syncModrinthFiltersFromSettings();
+    fetchModrinthMods();
+  }
 }
+
+window.navigateToView = navigateToView;
+window.isSpacePlusActive = isSpacePlusActive;
 
 function openSpacePlusFromCosmetics() {
   closeCosmeticDetail();
@@ -1330,18 +1338,10 @@ function updateMaximizeIcon(isMaximized) {
 
 function initNavigation() {
   const navBtns = document.querySelectorAll(".nav-btn[data-view]");
-  const views = document.querySelectorAll(".view");
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const viewId = btn.dataset.view;
-      navBtns.forEach((b) => b.classList.toggle("active", b === btn));
-      views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
-
-      if (viewId === "mods" && !modrinthState.loaded && !modrinthState.loading) {
-        syncModrinthFiltersFromSettings();
-        fetchModrinthMods();
-      }
+      navigateToView(btn.dataset.view);
     });
   });
 }
@@ -2447,6 +2447,7 @@ function initSpacePlus() {
   function toggleDemoSubscription() {
     localStorage.setItem(SPACEPLUS_SUB_KEY, isSubscribed() ? "false" : "true");
     document.dispatchEvent(new CustomEvent("sc-spaceplus-sync"));
+    window.dispatchEvent(new CustomEvent("space-entitlements-changed"));
   }
 
   function manageSubscription() {
@@ -2465,6 +2466,8 @@ function initSpacePlus() {
     updateSubscriptionUI();
     syncCosmeticEquippedState();
     renderCosmeticsGrid();
+    window.SpaceAds?.refresh?.();
+    window.dispatchEvent(new CustomEvent("space-entitlements-changed"));
     const spacePlusRow = document.getElementById("account-spaceplus-value");
     if (spacePlusRow && currentAuthState.isLoggedIn) {
       const plus = isSpacePlusActive();
@@ -2803,6 +2806,11 @@ function initPlayButton() {
   btn.addEventListener("click", async () => {
     if (btn.disabled || launching) return;
 
+    if (window.SpaceAds?.maybeShowPlayInterstitial) {
+      const continuePlay = await window.SpaceAds.maybeShowPlayInterstitial();
+      if (!continuePlay) return;
+    }
+
     if (!api?.launchGame) {
       clearLaunchConsole();
       setLaunchOverlayState("failed");
@@ -2817,6 +2825,7 @@ function initPlayButton() {
     }
 
     launching = true;
+    window.SpaceGUI?.pushActivity?.({ kind: "launch", text: "Started Minecraft launch" });
     lastPercent = 0;
     lastSpeed = 0;
     lastLabel = "Preparing launch…";
@@ -2892,6 +2901,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initCosmetics();
   initSocial();
   initAssistant();
+  initInteractiveGui();
+  initAds();
   initAccount();
   initStore();
   initSpacePlus();
@@ -2900,4 +2911,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAutoUpdaterUI();
   initPlayButton();
   updateActiveModCount();
+
+  document.getElementById("home-open-friends")?.addEventListener("click", () => {
+    navigateToView("friends");
+  });
+
+  window.SpaceClientAuth = {
+    getUsername: () => getCurrentUsername(),
+  };
 });
