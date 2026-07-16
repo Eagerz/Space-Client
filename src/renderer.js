@@ -1,10 +1,27 @@
-const INSTALLED_KEY = "space-client-installed-mods";
-const ACCENT_KEY = "space-client-accent";
-const BLUR_BG_KEY = "space-client-blur-bg";
-const CLEAR_PANELS_KEY = "space-client-clear-panels";
-const RAM_KEY = "space-client-ram";
-const IN_GAME_KEY = "space-client-in-game";
+const INSTALLED_KEY = "sl-installed-mods";
+const ACCENT_KEY = "sl-accent";
+const BLUR_BG_KEY = "sl-blur-bg";
+const CLEAR_PANELS_KEY = "sl-clear-panels";
+const RAM_KEY = "sl-ram";
+const IN_GAME_KEY = "sl-in-game";
 const MODRINTH_PAGE_SIZE = 20;
+
+/** One-time migrate prefs from Space Client localStorage keys. */
+(function migrateLegacyStorageKeys() {
+  const pairs = [
+    ["space-client-installed-mods", INSTALLED_KEY],
+    ["space-client-accent", ACCENT_KEY],
+    ["space-client-blur-bg", BLUR_BG_KEY],
+    ["space-client-clear-panels", CLEAR_PANELS_KEY],
+    ["space-client-ram", RAM_KEY],
+    ["space-client-in-game", IN_GAME_KEY],
+  ];
+  for (const [from, to] of pairs) {
+    if (localStorage.getItem(to) == null && localStorage.getItem(from) != null) {
+      localStorage.setItem(to, localStorage.getItem(from));
+    }
+  }
+})();
 
 const ACCENT_COLORS = [
   { id: "white", value: "#FFFFFF", label: "White" },
@@ -85,329 +102,33 @@ function syncInstallUI(projectId, installed) {
 
 const HOME_NEWS = [
   {
-    id: "release-v1",
+    id: "launcher-migration",
     tag: "Release",
-    date: "Jul 10, 2026",
-    title: "Space Client v1.0 released",
-    desc: "The first public build is live — launch Minecraft with Fabric, browse Modrinth, and manage cosmetics from one place.",
+    date: "Jul 16, 2026",
+    title: "Welcome to Space Launcher",
+    desc: "Space Launcher ships performance packs, profile cosmetics, and a redesigned Space+ membership.",
+  },
+  {
+    id: "perf-packs",
+    tag: "Feature",
+    date: "Jul 16, 2026",
+    title: "Performance packs inject at launch",
+    desc: "Lite, Standard, and Max Boost pull Sodium-stack jars into Fabric automatically — nothing lands in .minecraft/mods.",
   },
   {
     id: "mc-1211",
     tag: "Update",
     date: "Jul 8, 2026",
-    title: "Minecraft 1.21.1 now supported",
+    title: "Minecraft 1.21.1 supported",
     desc: "Play on the latest stable release with Fabric loader. More versions are on the way.",
   },
-  {
-    id: "modrinth",
-    tag: "Feature",
-    date: "Jul 5, 2026",
-    title: "Modrinth integration added",
-    desc: "Search, install, and manage mods without leaving the launcher.",
-  },
 ];
 
-const COSMETICS = [
-  {
-    id: "event-horizon",
-    category: "capes",
-    name: "Event Horizon",
-    desc: "A matte-black singularity with silver–violet light lazily lensing around its edge.",
-    rarity: "legendary",
-    tags: ["Animated", "Legendary", "Exclusive"],
-    price: 850,
-    previewImage: "assets/capes/event-horizon-preview.png",
-    sheetImage: "assets/capes/event-horizon-sheet.png",
-    textureImage: "assets/capes/event-horizon-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "hyperspace",
-    category: "capes",
-    name: "Hyperspace",
-    desc: "Vertical star streaks whip past as if you are forever jumping to warp.",
-    rarity: "epic",
-    tags: ["Animated", "Motion"],
-    price: 550,
-    previewImage: "assets/capes/hyperspace-preview.png",
-    sheetImage: "assets/capes/hyperspace-sheet.png",
-    textureImage: "assets/capes/hyperspace-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "starfall",
-    category: "capes",
-    name: "Starfall",
-    desc: "Quiet charcoal stars, then a sharp white comet cuts across and dissolves.",
-    rarity: "rare",
-    tags: ["Animated", "Rare"],
-    price: 400,
-    previewImage: "assets/capes/starfall-preview.png",
-    sheetImage: "assets/capes/starfall-sheet.png",
-    textureImage: "assets/capes/starfall-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "solar-eclipse",
-    category: "capes",
-    name: "Solar Eclipse",
-    desc: "A black lunar disc crowned by a flickering white corona and soft flare wisps.",
-    rarity: "epic",
-    tags: ["Animated", "Solar"],
-    price: 600,
-    previewImage: "assets/capes/solar-eclipse-preview.png",
-    sheetImage: "assets/capes/solar-eclipse-sheet.png",
-    textureImage: "assets/capes/solar-eclipse-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "liquid-nebula",
-    category: "capes",
-    name: "Liquid Nebula",
-    desc: "Obsidian canvas with indigo dust clouds drifting like silk lava.",
-    rarity: "epic",
-    tags: ["Animated", "Nebula"],
-    price: 550,
-    previewImage: "assets/capes/liquid-nebula-preview.png",
-    sheetImage: "assets/capes/liquid-nebula-sheet.png",
-    textureImage: "assets/capes/liquid-nebula-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "chronos",
-    category: "capes",
-    name: "Chronos",
-    desc: "Concentric orbital rings and pixel planets circling a tiny white sun.",
-    rarity: "legendary",
-    tags: ["Animated", "Legendary"],
-    price: 800,
-    previewImage: "assets/capes/chronos-preview.png",
-    sheetImage: "assets/capes/chronos-sheet.png",
-    textureImage: "assets/capes/chronos-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "lunar-cycle",
-    category: "capes",
-    name: "Lunar Cycle",
-    desc: "A single moon waxes and wanes through a clean phase loop.",
-    rarity: "rare",
-    tags: ["Animated", "Moon"],
-    price: 380,
-    previewImage: "assets/capes/lunar-cycle-preview.png",
-    sheetImage: "assets/capes/lunar-cycle-sheet.png",
-    textureImage: "assets/capes/lunar-cycle-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "cosmic-pulse",
-    category: "capes",
-    name: "Cosmic Pulse",
-    desc: "A quiet digital grid; ice-white nodes cascade from shoulders to hem.",
-    rarity: "uncommon",
-    tags: ["Animated", "Grid"],
-    price: 300,
-    previewImage: "assets/capes/cosmic-pulse-preview.png",
-    sheetImage: "assets/capes/cosmic-pulse-sheet.png",
-    textureImage: "assets/capes/cosmic-pulse-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "aurora-borealis",
-    category: "capes",
-    name: "Aurora Borealis",
-    desc: "Ethereal cyan curtains ripple like silk across a deep night sky.",
-    rarity: "epic",
-    tags: ["Animated", "Aurora"],
-    price: 580,
-    previewImage: "assets/capes/aurora-borealis-preview.png",
-    sheetImage: "assets/capes/aurora-borealis-sheet.png",
-    textureImage: "assets/capes/aurora-borealis-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "orion-shimmer",
-    category: "capes",
-    name: "Orion's Shimmer",
-    desc: "A mapped constellation shimmering independently along faint silver links.",
-    rarity: "rare",
-    tags: ["Animated", "Constellation"],
-    price: 420,
-    previewImage: "assets/capes/orion-shimmer-preview.png",
-    sheetImage: "assets/capes/orion-shimmer-sheet.png",
-    textureImage: "assets/capes/orion-shimmer-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "glitch-void",
-    category: "capes",
-    name: "Glitch Void",
-    desc: "Sleek black cloth that randomly slices, shifts, and flashes neon static.",
-    rarity: "epic",
-    tags: ["Animated", "Glitch"],
-    price: 620,
-    previewImage: "assets/capes/glitch-void-preview.png",
-    sheetImage: "assets/capes/glitch-void-sheet.png",
-    textureImage: "assets/capes/glitch-void-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "cosmic-dust",
-    category: "capes",
-    name: "Cosmic Dust",
-    desc: "The hem dissolves into rising silver sparks that fade into the void.",
-    rarity: "uncommon",
-    tags: ["Animated", "Particles"],
-    price: 280,
-    previewImage: "assets/capes/cosmic-dust-preview.png",
-    sheetImage: "assets/capes/cosmic-dust-sheet.png",
-    textureImage: "assets/capes/cosmic-dust-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "supernova-burst",
-    category: "capes",
-    name: "Supernova Burst",
-    desc: "A quiet field, then a white flash blooms into a fading stardust ring.",
-    rarity: "legendary",
-    tags: ["Animated", "Legendary"],
-    price: 750,
-    previewImage: "assets/capes/supernova-burst-preview.png",
-    sheetImage: "assets/capes/supernova-burst-sheet.png",
-    textureImage: "assets/capes/supernova-burst-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "satellite-signal",
-    category: "capes",
-    name: "Satellite Signal",
-    desc: "A retro vector satellite sends crisp concentric waves into the dark.",
-    rarity: "rare",
-    tags: ["Animated", "Retro"],
-    price: 360,
-    previewImage: "assets/capes/satellite-signal-preview.png",
-    sheetImage: "assets/capes/satellite-signal-sheet.png",
-    textureImage: "assets/capes/satellite-signal-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "dark-matter-waves",
-    category: "capes",
-    name: "Dark Matter Waves",
-    desc: "Satin dark-grey cloth disturbed by a continuous hypnotic ripple.",
-    rarity: "epic",
-    tags: ["Animated", "Subtle"],
-    price: 500,
-    previewImage: "assets/capes/dark-matter-waves-preview.png",
-    sheetImage: "assets/capes/dark-matter-waves-sheet.png",
-    textureImage: "assets/capes/dark-matter-waves-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "plus-sigil",
-    category: "capes",
-    name: "Plus Sigil",
-    desc: "Space+ exclusive — a silver plus mark that slowly blooms and retracts in the dark.",
-    rarity: "legendary",
-    tags: ["Animated", "Space+", "Exclusive"],
-    price: null,
-    exclusive: "spaceplus",
-    previewImage: "assets/capes/plus-sigil-preview.png",
-    sheetImage: "assets/capes/plus-sigil-sheet.png",
-    textureImage: "assets/capes/plus-sigil-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "member-orbit",
-    category: "capes",
-    name: "Member Orbit",
-    desc: "Space+ exclusive — dual orbital rings with a soft silver pulse reserved for members.",
-    rarity: "epic",
-    tags: ["Animated", "Space+", "Exclusive"],
-    price: null,
-    exclusive: "spaceplus",
-    previewImage: "assets/capes/member-orbit-preview.png",
-    sheetImage: "assets/capes/member-orbit-sheet.png",
-    textureImage: "assets/capes/member-orbit-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "priority-flare",
-    category: "capes",
-    name: "Priority Flare",
-    desc: "Space+ exclusive — a quiet field then a crisp priority flare that echoes down the cape.",
-    rarity: "legendary",
-    tags: ["Animated", "Space+", "Exclusive"],
-    price: null,
-    exclusive: "spaceplus",
-    previewImage: "assets/capes/priority-flare-preview.png",
-    sheetImage: "assets/capes/priority-flare-sheet.png",
-    textureImage: "assets/capes/priority-flare-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "space-pup",
-    category: "pets",
-    name: "Space Pup",
-    desc: "A loyal pup in a tiny astronaut suit, orbiting your shoulder.",
-    rarity: "rare",
-    tags: ["Companion"],
-    preview: "🐕",
-    equipped: true,
-  },
-  {
-    id: "star-fox",
-    category: "pets",
-    name: "Star Fox Pet",
-    desc: "A cosmic fox with a glowing tail that leaves stardust in its wake.",
-    rarity: "legendary",
-    tags: ["Animated", "Rare Drop"],
-    preview: "🦊",
-    equipped: false,
-  },
-  {
-    id: "orbital-cat",
-    category: "pets",
-    name: "Orbital Cat",
-    desc: "A zero-gravity cat that drifts in a slow orbit around you.",
-    rarity: "epic",
-    tags: ["Floating"],
-    preview: "🐱",
-    equipped: false,
-  },
-  {
-    id: "cosmic-slime",
-    category: "pets",
-    name: "Cosmic Slime",
-    desc: "A translucent slime blob filled with tiny twinkling stars.",
-    rarity: "common",
-    tags: ["Starter"],
-    preview: "✨",
-    equipped: false,
-  },
-];
+const COSMETICS = []; // migrated to src/cosmetics.js
 
 const cosmeticsState = { tab: "capes" };
-const OWNED_COSMETICS_KEY = "sc-owned-cosmetics";
-const EQUIPPED_COSMETICS_KEY = "sc-equipped-cosmetics";
+const OWNED_COSMETICS_KEY = "sl-owned-cosmetics";
+const EQUIPPED_COSMETICS_KEY = "sl-equipped-cosmetics";
 const SPACEPLUS_SUB_KEY = "spaceplus-subscribed";
 
 /** Username → role. Owner unlocks every cosmetic. */
@@ -528,10 +249,21 @@ function setEquippedCosmetic(category, id) {
 }
 
 function syncCosmeticEquippedState() {
-  const equipped = getEquippedCosmetics();
-  COSMETICS.forEach((item) => {
-    item.equipped = equipped[item.category] === item.id;
-  });
+  window.SpaceCosmetics?.refresh?.();
+}
+
+function renderCosmeticsGrid() {
+  window.SpaceCosmetics?.refresh?.();
+}
+
+function initCosmeticDetailPanel() {
+  // Handled by src/cosmetics.js
+}
+
+function initCosmetics() {
+  if (typeof window.initSpaceCosmetics === "function") {
+    window.initSpaceCosmetics();
+  }
 }
 
 function getCreditsBalance() {
@@ -548,897 +280,21 @@ function setCreditsBalance(credits) {
   return value;
 }
 
-function purchaseCosmetic(id) {
-  const item = COSMETICS.find((entry) => entry.id === id);
-  if (!item) return { success: false, error: "Item not found." };
-  if (item.exclusive === "spaceplus") {
-    return { success: false, error: "Space+ exclusive.", requiresSpacePlus: true };
-  }
-  if (item.price == null) return { success: false, error: "Not for sale." };
-  if (isCosmeticOwned(id)) return { success: false, error: "Already owned." };
 
-  const balance = getCreditsBalance();
-  if (balance < item.price) {
-    return { success: false, error: `Need ${formatStoreCredits(item.price - balance)} more credits.` };
-  }
-
-  setCreditsBalance(balance - item.price);
-  const owned = getOwnedCosmetics();
-  owned.push(id);
-  setOwnedCosmetics(owned);
-  return { success: true };
+function purchaseCosmetic() {
+  return { success: false, error: "Use the Cosmetics tab." };
 }
 
-function renderAnimatedCapePreview(item) {
-  const sheet = escapeHtml(item.sheetImage || item.previewImage || "");
-  const alt = escapeHtml(item.name);
-  return `
-    <div class="cape-live-preview" aria-hidden="true">
-      <div class="cape-live-cape-window">
-        <img class="cape-live-sheet" src="${sheet}" alt="${alt} animation" />
-      </div>
-    </div>`;
-}
-
-function renderCosmeticPreview(item) {
-  if (item.category === "capes" && (item.sheetImage || item.animImage)) {
-    return renderAnimatedCapePreview(item);
-  }
-  if (item.previewImage) {
-    const src = escapeHtml(item.previewImage);
-    const alt = escapeHtml(item.name);
-    return `<img class="cosmetic-preview-img" src="${src}" alt="${alt} preview" loading="lazy" />`;
-  }
-  if (item.category === "capes" && item.previewClass) {
-    return renderCapePreview(item.previewClass);
-  }
-  return `<span class="cosmetic-preview-icon" aria-hidden="true">${item.preview || "✨"}</span>`;
-}
-
-function renderCosmeticCard(item) {
-  const tags = cosmeticDisplayTags(item.tags)
-    .map((tag) => `<span class="cosmetic-tag">${escapeHtml(tag)}</span>`)
-    .join("");
-
-  const previewClass = item.category === "capes" ? " cosmetic-preview--cape" : "";
-  const owned = isCosmeticOwned(item.id);
-  const isSpacePlusItem = item.exclusive === "spaceplus";
-
-  let priceBlock = "";
-  if (isSpacePlusItem && !owned) {
-    priceBlock = `<div class="cosmetic-price-row">
-         <span class="cosmetic-exclusive-badge">Space+</span>
-         <button type="button" class="btn-cosmetic-spaceplus" data-open-spaceplus>Unlock with Space+</button>
-       </div>`;
-  } else if (item.price != null && !owned) {
-    priceBlock = `<div class="cosmetic-price-row">
-         <span class="cosmetic-price">
-           <svg class="cosmetic-price-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h4a2 2 0 010 4h-2a2 2 0 000 4h4"/></svg>
-           ${formatStoreCredits(item.price)}
-         </span>
-         <button type="button" class="btn-cosmetic-buy" data-buy-cosmetic="${escapeHtml(item.id)}">Buy</button>
-       </div>`;
-  } else if (owned) {
-    priceBlock = isSpacePlusItem
-      ? `<div class="cosmetic-owned-badge">${playerHasAllCosmetics() ? "Owner unlocked" : "Space+ owned"}</div>`
-      : item.price != null
-        ? `<div class="cosmetic-owned-badge">${playerHasAllCosmetics() && !getOwnedCosmetics().includes(item.id) ? "Owner unlocked" : "Owned"}</div>`
-        : "";
-  }
-
-  const equipToggle = owned
-    ? `<label class="toggle" title="${item.equipped ? "Unequip" : "Equip"}">
-         <input type="checkbox" ${item.equipped ? "checked" : ""} data-cosmetic-toggle="${item.id}" aria-label="Equip ${escapeHtml(item.name)}" />
-         <span class="toggle-track"><span class="toggle-thumb"></span></span>
-       </label>`
-    : "";
-
-  return `
-    <article class="cosmetic-card ${item.equipped ? "equipped" : ""} ${owned ? "owned" : "locked"} ${isSpacePlusItem ? "spaceplus-exclusive" : ""}" data-cosmetic="${item.id}" data-category="${item.category}" data-open-cosmetic="${item.id}" role="button" tabindex="0">
-      <div class="cosmetic-preview${previewClass}">
-        ${renderCosmeticPreview(item)}
-        ${isSpacePlusItem ? '<span class="cosmetic-spaceplus-flag">Space+</span>' : ""}
-        ${item.equipped ? '<span class="cosmetic-equipped-badge">Equipped</span>' : ""}
-      </div>
-      <div class="cosmetic-body">
-        <div class="cosmetic-header">
-          <h3 class="cosmetic-title">${escapeHtml(item.name)}</h3>
-          ${equipToggle}
-        </div>
-        <p class="cosmetic-desc">${escapeHtml(item.desc)}</p>
-        ${tags ? `<div class="cosmetic-tags">${tags}</div>` : ""}
-        ${priceBlock}
-      </div>
-    </article>`;
-}
-
-function getCosmeticsForTab(tab) {
-  return COSMETICS.filter((item) => item.category === tab);
-}
-
-function updateCosmeticsMeta(tab) {
-  const meta = document.getElementById("cosmetics-meta");
-  if (!meta) return;
-
-  const items = getCosmeticsForTab(tab);
-  const equipped = items.find((item) => item.equipped);
-  const label = tab === "capes" ? "cape" : "pet";
-  meta.textContent = equipped
-    ? `${items.length} ${label}s · ${equipped.name} equipped`
-    : `${items.length} ${label}s · none equipped`;
-}
-
-function renderCosmeticsGrid() {
-  const grid = document.getElementById("cosmetics-grid");
-  if (!grid) return;
-
-  const items = getCosmeticsForTab(cosmeticsState.tab);
-  grid.innerHTML = items.length
-    ? items.map(renderCosmeticCard).join("")
-    : '<div class="cosmetics-empty">No cosmetics in this category yet.</div>';
-
-  updateCosmeticsMeta(cosmeticsState.tab);
-
-  if (cosmeticDetailOpen && cosmeticDetailId) {
-    const still = COSMETICS.find((entry) => entry.id === cosmeticDetailId);
-    if (still) renderCosmeticDetailContent(still);
-  }
-}
-
-let cosmeticDetailOpen = false;
-let cosmeticDetailId = null;
-
-function renderCosmeticDetailContent(item) {
-  const content = document.getElementById("cosmetic-detail-content");
-  if (!content || !item) return;
-
-  const owned = isCosmeticOwned(item.id);
-  const isSpacePlusItem = item.exclusive === "spaceplus";
-  const tags = cosmeticDisplayTags(item.tags)
-    .map((tag) => `<span class="cosmetic-tag">${escapeHtml(tag)}</span>`)
-    .join("");
-
-  const preview = item.sheetImage
-    ? `<div class="cosmetic-detail-hero">
-         <div class="cape-live-cape-window cape-live-cape-window--xl">
-           <img class="cape-live-sheet" src="${escapeHtml(item.sheetImage)}" alt="${escapeHtml(item.name)}" />
-         </div>
-       </div>`
-    : `<div class="cosmetic-detail-hero cosmetic-detail-hero--icon">${renderCosmeticPreview(item)}</div>`;
-
-  let actions = "";
-  if (isSpacePlusItem && !owned) {
-    actions = `
-      <div class="cosmetic-detail-actions">
-        <span class="cosmetic-exclusive-badge">Space+ Exclusive</span>
-        <button type="button" class="btn-cosmetic-spaceplus btn-cosmetic-buy--lg" data-open-spaceplus>Upgrade to Space+</button>
-      </div>`;
-  } else if (item.price != null && !owned) {
-    actions = `
-      <div class="cosmetic-detail-actions">
-        <div class="cosmetic-detail-price">
-          <span class="cosmetic-price">
-            <svg class="cosmetic-price-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h4a2 2 0 010 4h-2a2 2 0 000 4h4"/></svg>
-            ${formatStoreCredits(item.price)}
-          </span>
-          <span class="cosmetic-detail-balance">Balance: ${formatStoreCredits(getCreditsBalance())}</span>
-        </div>
-        <button type="button" class="btn-cosmetic-buy btn-cosmetic-buy--lg" data-buy-cosmetic="${escapeHtml(item.id)}">Buy Cape</button>
-      </div>`;
-  } else if (owned) {
-    actions = `
-      <div class="cosmetic-detail-actions">
-        <div class="cosmetic-owned-badge">${playerHasAllCosmetics() ? "Unlocked by Owner role" : isSpacePlusItem ? "Included with Space+" : "Owned"}</div>
-        <label class="toggle cosmetic-detail-equip" title="${item.equipped ? "Unequip" : "Equip"}">
-          <span class="cosmetic-detail-equip-label">${item.equipped ? "Equipped" : "Equip"}</span>
-          <input type="checkbox" ${item.equipped ? "checked" : ""} data-cosmetic-toggle="${item.id}" aria-label="Equip ${escapeHtml(item.name)}" />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-      </div>`;
-  }
-
-  content.innerHTML = `
-    ${preview}
-    <header class="cosmetic-detail-header">
-      <div>
-        <p class="cosmetic-detail-kicker">${escapeHtml(item.category === "capes" ? "Cape" : "Pet")}${isSpacePlusItem ? " · Space+" : ""}</p>
-        <h2 class="cosmetic-detail-title" id="cosmetic-detail-title">${escapeHtml(item.name)}</h2>
-      </div>
-    </header>
-    <p class="cosmetic-detail-desc">${escapeHtml(item.desc)}</p>
-    ${tags ? `<div class="cosmetic-tags cosmetic-detail-tags">${tags}</div>` : ""}
-    ${item.frameCount ? `<p class="cosmetic-detail-meta">${item.frameCount}-frame animated loop · Minecraft cape texture</p>` : ""}
-    ${actions}
-  `;
-}
-
-function openCosmeticDetail(id) {
-  const overlay = document.getElementById("cosmetic-detail-overlay");
-  const item = COSMETICS.find((entry) => entry.id === id);
-  if (!overlay || !item) return;
-
-  cosmeticDetailId = id;
-  cosmeticDetailOpen = true;
-  document.body.classList.add("cosmetic-detail-open");
-  overlay.hidden = false;
-  overlay.setAttribute("aria-hidden", "false");
-  renderCosmeticDetailContent(item);
+function openSpacePlusFromCosmetics() {
+  window.navigateToView?.("spaceplus");
 }
 
 function closeCosmeticDetail() {
   const overlay = document.getElementById("cosmetic-detail-overlay");
-  if (!overlay || overlay.hidden) return;
-
-  overlay.hidden = true;
-  overlay.setAttribute("aria-hidden", "true");
-  cosmeticDetailOpen = false;
-  cosmeticDetailId = null;
-  document.body.classList.remove("cosmetic-detail-open");
-}
-
-function initCosmeticDetailPanel() {
-  const overlay = document.getElementById("cosmetic-detail-overlay");
-  if (!overlay) return;
-
-  overlay.addEventListener("click", (e) => {
-    if (e.target.closest("[data-cosmetic-detail-close]")) {
-      closeCosmeticDetail();
-      return;
-    }
-
-    if (e.target.closest("[data-open-spaceplus]")) {
-      openSpacePlusFromCosmetics();
-      return;
-    }
-
-    const buyBtn = e.target.closest("[data-buy-cosmetic]");
-    if (buyBtn) {
-      const id = buyBtn.dataset.buyCosmetic;
-      const result = purchaseCosmetic(id);
-      if (!result.success) {
-        buyBtn.classList.add("error");
-        buyBtn.textContent = result.error?.length > 28 ? "Not enough credits" : result.error;
-        setTimeout(() => {
-          buyBtn.classList.remove("error");
-          buyBtn.textContent = "Buy Cape";
-        }, 2200);
-        return;
-      }
-      const item = COSMETICS.find((entry) => entry.id === id);
-      if (item) {
-        COSMETICS.forEach((entry) => {
-          if (entry.category === item.category) entry.equipped = false;
-        });
-        item.equipped = true;
-        setEquippedCosmetic(item.category, id);
-      }
-      renderCosmeticsGrid();
-      return;
-    }
-  });
-
-  overlay.addEventListener("change", (e) => {
-    const id = e.target.dataset.cosmeticToggle;
-    if (!id) return;
-    const item = COSMETICS.find((entry) => entry.id === id);
-    if (!item) return;
-    if (item.price && !isCosmeticOwned(id)) {
-      e.target.checked = false;
-      return;
-    }
-    if (e.target.checked) {
-      COSMETICS.forEach((entry) => {
-        if (entry.category === item.category) entry.equipped = entry.id === id;
-      });
-      setEquippedCosmetic(item.category, id);
-    } else {
-      item.equipped = false;
-      setEquippedCosmetic(item.category, null);
-    }
-    renderCosmeticsGrid();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && cosmeticDetailOpen) closeCosmeticDetail();
-  });
-}
-
-function getInstalledMods() {
-  try {
-    return JSON.parse(localStorage.getItem(INSTALLED_KEY) || "{}");
-  } catch {
-    return {};
+  if (overlay) {
+    overlay.hidden = true;
+    overlay.setAttribute("aria-hidden", "true");
   }
-}
-
-function setInstalledMod(projectId, data) {
-  const installed = getInstalledMods();
-  installed[projectId] = data;
-  localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed));
-  updateActiveModCount();
-}
-
-function removeInstalledMod(projectId) {
-  const installed = getInstalledMods();
-  delete installed[projectId];
-  localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed));
-  updateActiveModCount();
-}
-
-function isModInstalled(projectId) {
-  return Boolean(getInstalledMods()[projectId]);
-}
-
-function formatFooterVersion() {
-  const loaderLabel = modrinthState.homeLoader === "vanilla" ? "Vanilla" : "Fabric";
-  return `${modrinthState.version} - ${loaderLabel}`;
-}
-
-function syncLaunchToApp() {
-  modrinthState.loader = modrinthState.homeLoader === "vanilla" ? "vanilla" : modrinthState.homeLoader;
-
-  const footerVersion = document.getElementById("footer-version");
-  if (footerVersion) footerVersion.textContent = formatFooterVersion();
-
-  const modrinthLoader = document.getElementById("modrinth-loader");
-  if (modrinthLoader && modrinthState.homeLoader === "fabric") {
-    modrinthLoader.value = "fabric";
-  }
-}
-
-function initLaunchSelectors() {
-  const versionSelect = document.getElementById("home-version");
-  const loaderSelect = document.getElementById("home-loader");
-  if (!versionSelect || !loaderSelect) return;
-
-  versionSelect.innerHTML = MINECRAFT_VERSIONS.map(
-    (v) => `<option value="${v}"${v === modrinthState.version ? " selected" : ""}>${v}</option>`
-  ).join("");
-
-  loaderSelect.value = modrinthState.homeLoader;
-  syncLaunchToApp();
-
-  versionSelect.addEventListener("change", () => {
-    modrinthState.version = versionSelect.value;
-    syncLaunchToApp();
-    if (modrinthState.loaded) {
-      modrinthState.offset = 0;
-      fetchModrinthMods();
-    }
-  });
-
-  loaderSelect.addEventListener("change", () => {
-    modrinthState.homeLoader = loaderSelect.value;
-    syncLaunchToApp();
-    if (modrinthState.loaded) {
-      modrinthState.offset = 0;
-      fetchModrinthMods();
-    }
-  });
-}
-
-function syncModrinthFiltersFromSettings() {
-  const loaderSelect = document.getElementById("modrinth-loader");
-  if (loaderSelect) loaderSelect.value = modrinthState.loader;
-}
-
-function renderModrinthCard(hit) {
-  const installed = isModInstalled(hit.project_id);
-  return `
-    <article class="modrinth-card ${installed ? "installed" : ""}" data-project-id="${hit.project_id}">
-      <img class="modrinth-icon" src="${hit.icon_url}" alt="" loading="lazy" />
-      <div class="modrinth-body">
-        <div class="modrinth-title-row">
-          <h3 class="modrinth-title" title="${hit.title}">${hit.title}</h3>
-        </div>
-        <div class="modrinth-author">by ${hit.author}</div>
-        <p class="modrinth-desc">${hit.description}</p>
-        <div class="modrinth-stats">
-          <span><strong>${Modrinth.formatDownloads(hit.downloads)}</strong> downloads</span>
-          <span><strong>${Modrinth.formatDownloads(hit.follows)}</strong> followers</span>
-        </div>
-        <div class="modrinth-actions">
-          <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" data-install="${hit.project_id}" data-slug="${hit.slug}">
-            ${installed ? "Installed" : "Install"}
-          </button>
-          <button type="button" class="btn-mod" data-view-mod="${escapeHtml(hit.slug)}" data-project-id="${hit.project_id}" data-author="${escapeHtml(hit.author)}">View</button>
-        </div>
-      </div>
-    </article>`;
-}
-
-function renderModrinthSkeletons(count = 6) {
-  return Array.from({ length: count }, () => '<div class="modrinth-skeleton"></div>').join("");
-}
-
-function renderModrinthPagination() {
-  const pagination = document.getElementById("modrinth-pagination");
-  if (!pagination) return;
-
-  const page = Math.floor(modrinthState.offset / MODRINTH_PAGE_SIZE) + 1;
-  const totalPages = Math.max(1, Math.ceil(modrinthState.totalHits / MODRINTH_PAGE_SIZE));
-
-  pagination.innerHTML = `
-    <button type="button" id="modrinth-prev" ${modrinthState.offset === 0 ? "disabled" : ""}>Previous</button>
-    <span>Page ${page} of ${totalPages}</span>
-    <button type="button" id="modrinth-next" ${page >= totalPages ? "disabled" : ""}>Next</button>`;
-
-  document.getElementById("modrinth-prev")?.addEventListener("click", () => {
-    modrinthState.offset = Math.max(0, modrinthState.offset - MODRINTH_PAGE_SIZE);
-    fetchModrinthMods();
-  });
-
-  document.getElementById("modrinth-next")?.addEventListener("click", () => {
-    modrinthState.offset += MODRINTH_PAGE_SIZE;
-    fetchModrinthMods();
-  });
-}
-
-async function fetchModrinthMods() {
-  if (modrinthState.loading) return;
-
-  const grid = document.getElementById("modrinth-grid");
-  const meta = document.getElementById("modrinth-meta");
-  if (!grid) return;
-
-  modrinthState.loading = true;
-  grid.innerHTML = renderModrinthSkeletons();
-  if (meta) meta.textContent = "Loading from Modrinth…";
-
-  try {
-    const data = await Modrinth.search({
-      query: modrinthState.query,
-      loader: modrinthState.loader,
-      version: modrinthState.version,
-      index: modrinthState.index,
-      offset: modrinthState.offset,
-      limit: MODRINTH_PAGE_SIZE,
-    });
-
-    modrinthState.totalHits = data.total_hits;
-    modrinthState.loaded = true;
-
-    if (!data.hits.length) {
-      grid.innerHTML = '<div class="modrinth-empty">No mods found. Try a different search or filter.</div>';
-    } else {
-      grid.innerHTML = data.hits.map(renderModrinthCard).join("");
-    }
-
-    if (meta) {
-      const loaderLabel = modrinthState.homeLoader === "vanilla" ? "vanilla" : modrinthState.loader;
-      meta.textContent = `${data.total_hits.toLocaleString()} mods · ${loaderLabel} · Minecraft ${modrinthState.version}`;
-    }
-
-    renderModrinthPagination();
-  } catch (err) {
-    grid.innerHTML = `<div class="modrinth-error">Failed to load mods: ${err.message}</div>`;
-    if (meta) meta.textContent = "";
-    document.getElementById("modrinth-pagination").innerHTML = "";
-  } finally {
-    modrinthState.loading = false;
-  }
-}
-
-async function handleModInstall(projectId, slug, btn) {
-  if (isModInstalled(projectId)) {
-    removeInstalledMod(projectId);
-    syncInstallUI(projectId, false);
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = "Installing…";
-
-  try {
-    const version = await Modrinth.getCompatibleVersion(projectId, modrinthState.loader, modrinthState.version);
-    if (!version) throw new Error("No compatible version found");
-
-    setInstalledMod(projectId, {
-      slug,
-      title: version.name,
-      versionId: version.id,
-      versionNumber: version.version_number,
-      installedAt: Date.now(),
-    });
-
-    syncInstallUI(projectId, true);
-  } catch (err) {
-    document.querySelectorAll(`[data-install="${projectId}"]`).forEach((installBtn) => {
-      installBtn.textContent = "Failed";
-      setTimeout(() => setInstallButtonState(installBtn, false), 2000);
-    });
-    console.error("Install failed:", err);
-  } finally {
-    document.querySelectorAll(`[data-install="${projectId}"]`).forEach((installBtn) => {
-      installBtn.disabled = false;
-    });
-  }
-}
-
-function renderModDetailLoading() {
-  const content = document.getElementById("mod-detail-content");
-  if (!content) return;
-  content.innerHTML = `
-    <div class="mod-detail-loading">
-      <div class="mod-detail-spinner"></div>
-      <p>Loading mod details…</p>
-    </div>`;
-}
-
-function renderModDetailError(message) {
-  const content = document.getElementById("mod-detail-content");
-  if (!content) return;
-  content.innerHTML = `
-    <div class="mod-detail-error">
-      <p>Failed to load mod details</p>
-      <p class="mod-detail-error-msg">${escapeHtml(message)}</p>
-      <button type="button" class="btn-mod" data-mod-detail-close>Close</button>
-    </div>`;
-}
-
-function renderModDetailContent(project, { author } = {}) {
-  const content = document.getElementById("mod-detail-content");
-  if (!content) return;
-
-  const installed = isModInstalled(project.id);
-  const displayAuthor = author || "Unknown";
-  const loaders = project.loaders || [];
-  const categories = [...(project.categories || []), ...(project.additional_categories || [])];
-  const gameVersions = [...(project.game_versions || [])].reverse();
-  const showBody = project.body && project.body.trim() !== project.description?.trim();
-
-  content.innerHTML = `
-    <header class="mod-detail-header">
-      <img class="mod-detail-icon" src="${escapeHtml(project.icon_url)}" alt="" />
-      <div class="mod-detail-header-text">
-        <h2 class="mod-detail-title" id="mod-detail-title">${escapeHtml(project.title)}</h2>
-        <p class="mod-detail-author">by ${escapeHtml(displayAuthor)}</p>
-      </div>
-    </header>
-    <div class="mod-detail-stats">
-      <span><strong>${Modrinth.formatDownloads(project.downloads)}</strong> downloads</span>
-      <span><strong>${Modrinth.formatDownloads(project.followers ?? 0)}</strong> followers</span>
-    </div>
-    <p class="mod-detail-desc">${escapeHtml(project.description)}</p>
-    ${showBody ? `<div class="mod-detail-body">${escapeHtml(project.body)}</div>` : ""}
-    ${loaders.length ? `<div class="mod-detail-section"><h3>Loaders</h3><div class="mod-detail-tags">${renderTagList(loaders)}</div></div>` : ""}
-    ${categories.length ? `<div class="mod-detail-section"><h3>Categories</h3><div class="mod-detail-tags">${renderTagList(categories)}</div></div>` : ""}
-    ${gameVersions.length ? `<div class="mod-detail-section"><h3>Game versions</h3><div class="mod-detail-tags">${renderTagList(gameVersions, 12)}</div></div>` : ""}
-    <div class="mod-detail-actions">
-      <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" data-install="${project.id}" data-slug="${escapeHtml(project.slug)}">
-        ${installed ? "Installed" : "Install"}
-      </button>
-    </div>
-    <a class="mod-detail-external" href="${Modrinth.projectUrl(project.slug)}" target="_blank" rel="noopener">View on Modrinth ↗</a>`;
-}
-
-function openModDetail(slug, { author } = {}) {
-  const overlay = document.getElementById("mod-detail-overlay");
-  if (!overlay) return;
-
-  overlay.hidden = false;
-  overlay.setAttribute("aria-hidden", "false");
-  modDetailOpen = true;
-  document.body.classList.add("mod-detail-open");
-  renderModDetailLoading();
-
-  Modrinth.getProject(slug)
-    .then((project) => renderModDetailContent(project, { author }))
-    .catch((err) => renderModDetailError(err.message));
-}
-
-function closeModDetail() {
-  const overlay = document.getElementById("mod-detail-overlay");
-  if (!overlay || overlay.hidden) return;
-
-  overlay.hidden = true;
-  overlay.setAttribute("aria-hidden", "true");
-  modDetailOpen = false;
-  document.body.classList.remove("mod-detail-open");
-}
-
-function initModDetailPanel() {
-  const overlay = document.getElementById("mod-detail-overlay");
-  if (!overlay) return;
-
-  overlay.addEventListener("click", (e) => {
-    if (e.target.closest("[data-mod-detail-close]")) {
-      closeModDetail();
-      return;
-    }
-
-    const installBtn = e.target.closest("[data-install]");
-    if (installBtn) {
-      handleModInstall(installBtn.dataset.install, installBtn.dataset.slug, installBtn);
-    }
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && modDetailOpen) closeModDetail();
-  });
-}
-
-function initModrinth() {
-  const grid = document.getElementById("modrinth-grid");
-  const searchInput = document.getElementById("modrinth-search");
-  const loaderSelect = document.getElementById("modrinth-loader");
-  const sortSelect = document.getElementById("modrinth-sort");
-  if (!grid) return;
-
-  syncModrinthFiltersFromSettings();
-
-  let searchDebounce;
-  searchInput?.addEventListener("input", () => {
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-      modrinthState.query = searchInput.value;
-      modrinthState.offset = 0;
-      fetchModrinthMods();
-    }, 350);
-  });
-
-  loaderSelect?.addEventListener("change", () => {
-    modrinthState.loader = loaderSelect.value;
-    modrinthState.offset = 0;
-    fetchModrinthMods();
-  });
-
-  sortSelect?.addEventListener("change", () => {
-    modrinthState.index = sortSelect.value;
-    modrinthState.offset = 0;
-    fetchModrinthMods();
-  });
-
-  grid.addEventListener("click", (e) => {
-    const installBtn = e.target.closest("[data-install]");
-    if (installBtn) {
-      handleModInstall(installBtn.dataset.install, installBtn.dataset.slug, installBtn);
-      return;
-    }
-
-    const viewBtn = e.target.closest("[data-view-mod]");
-    if (viewBtn) {
-      openModDetail(viewBtn.dataset.viewMod, { author: viewBtn.dataset.author });
-    }
-  });
-}
-
-function updateActiveModCount() {
-  // Reserved for future dashboard use; installed count lives in localStorage.
-}
-
-function updateHeroGreeting(state) {
-  const nameEl = document.getElementById("hero-greeting-name");
-  if (!nameEl) return;
-
-  const loggedIn = Boolean(state?.isLoggedIn && state?.profile);
-  nameEl.textContent = loggedIn ? state.profile.username : "Guest";
-}
-
-function navigateToView(viewId) {
-  const navBtn = document.querySelector(`.nav-btn[data-view="${viewId}"]`);
-  const views = document.querySelectorAll(".view");
-  if (!navBtn) return;
-  document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.toggle("active", b === navBtn));
-  views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
-}
-
-function openSpacePlusFromCosmetics() {
-  closeCosmeticDetail();
-  navigateToView("spaceplus");
-}
-
-function updateTitlebarPlayer(state) {
-  currentAuthState = {
-    isLoggedIn: Boolean(state?.isLoggedIn && state?.profile),
-    profile: state?.profile || null,
-  };
-  updateHeroGreeting(state);
-
-  const nameEl = document.getElementById("titlebar-player-name");
-  const dotEl = document.getElementById("titlebar-status-dot");
-  const roleEl = document.getElementById("titlebar-role-badge");
-  if (!nameEl || !dotEl) return;
-
-  const loggedIn = Boolean(state?.isLoggedIn && state?.profile);
-  const username = loggedIn ? state.profile.username : "Guest";
-  nameEl.textContent = username;
-
-  const role = loggedIn ? getPlayerRole(username) : null;
-  if (roleEl) {
-    if (role) {
-      roleEl.hidden = false;
-      roleEl.textContent = role.label;
-      roleEl.dataset.role = role.id;
-    } else {
-      roleEl.hidden = true;
-      roleEl.textContent = "";
-      delete roleEl.dataset.role;
-    }
-  }
-
-  const inGame = localStorage.getItem(IN_GAME_KEY) === "true";
-
-  dotEl.classList.toggle("online", inGame);
-  dotEl.classList.toggle("offline", !inGame);
-  dotEl.setAttribute("title", inGame ? "In game" : "Not in game");
-
-  // Owner / Space+ ownership can change with auth — refresh cosmetics UI if visible
-  if (document.getElementById("cosmetics-grid")) {
-    syncCosmeticEquippedState();
-    renderCosmeticsGrid();
-  }
-}
-
-function refreshTitlebarPlayer() {
-  const api = window.electronAPI;
-  if (api) {
-    api.getAuthProfile().then(updateTitlebarPlayer);
-  } else {
-    updateTitlebarPlayer({ isLoggedIn: false, profile: null });
-  }
-}
-
-function setInGame(inGame) {
-  localStorage.setItem(IN_GAME_KEY, inGame ? "true" : "false");
-  refreshTitlebarPlayer();
-}
-
-function initTitlebarPlayer() {
-  const api = window.electronAPI;
-  if (!api) {
-    updateTitlebarPlayer({ isLoggedIn: false, profile: null });
-    return;
-  }
-
-  api.getAuthProfile().then(updateTitlebarPlayer);
-  api.onAuthStateChanged(updateTitlebarPlayer);
-}
-
-function initWindowControls() {
-  const minimizeBtn = document.getElementById("btn-minimize");
-  const maximizeBtn = document.getElementById("btn-maximize");
-  const closeBtn = document.getElementById("btn-close");
-  const api = window.electronAPI;
-
-  if (!api) return;
-
-  minimizeBtn?.addEventListener("click", () => api.minimizeWindow());
-  closeBtn?.addEventListener("click", () => api.closeWindow());
-
-  maximizeBtn?.addEventListener("click", async () => {
-    await api.maximizeWindow();
-  });
-
-  api.isMaximized().then(updateMaximizeIcon);
-  api.onMaximizedChanged(updateMaximizeIcon);
-}
-
-function updateMaximizeIcon(isMaximized) {
-  const btn = document.getElementById("btn-maximize");
-  if (!btn) return;
-
-  btn.innerHTML = isMaximized
-    ? `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">
-         <path d="M2 2h6v6H2z"/><path d="M4 4h4v4"/>
-       </svg>`
-    : `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">
-         <rect x="0.5" y="0.5" width="9" height="9"/>
-       </svg>`;
-  btn.setAttribute("aria-label", isMaximized ? "Restore" : "Maximize");
-}
-
-function initNavigation() {
-  const navBtns = document.querySelectorAll(".nav-btn[data-view]");
-  const views = document.querySelectorAll(".view");
-
-  navBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const viewId = btn.dataset.view;
-      navBtns.forEach((b) => b.classList.toggle("active", b === btn));
-      views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
-
-      if (viewId === "mods" && !modrinthState.loaded && !modrinthState.loading) {
-        syncModrinthFiltersFromSettings();
-        fetchModrinthMods();
-      }
-    });
-  });
-}
-function initCosmetics() {
-  const grid = document.getElementById("cosmetics-grid");
-  const tabs = document.querySelectorAll("[data-cosmetics-tab]");
-  if (!grid) return;
-
-  syncCosmeticEquippedState();
-  renderCosmeticsGrid();
-
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const nextTab = tab.dataset.cosmeticsTab;
-      if (!nextTab || nextTab === cosmeticsState.tab) return;
-
-      cosmeticsState.tab = nextTab;
-      tabs.forEach((btn) => {
-        const isActive = btn.dataset.cosmeticsTab === nextTab;
-        btn.classList.toggle("active", isActive);
-        btn.setAttribute("aria-selected", isActive ? "true" : "false");
-      });
-      renderCosmeticsGrid();
-    });
-  });
-
-  grid.addEventListener("click", (e) => {
-    const spacePlusBtn = e.target.closest("[data-open-spaceplus]");
-    if (spacePlusBtn) {
-      e.stopPropagation();
-      openSpacePlusFromCosmetics();
-      return;
-    }
-
-    if (e.target.closest("[data-buy-cosmetic]") || e.target.closest(".toggle") || e.target.closest("input")) {
-      const buyBtn = e.target.closest("[data-buy-cosmetic]");
-      if (buyBtn) {
-        e.stopPropagation();
-        const id = buyBtn.dataset.buyCosmetic;
-        const result = purchaseCosmetic(id);
-        if (!result.success) {
-          buyBtn.classList.add("error");
-          buyBtn.textContent = result.error?.length > 24 ? "Not enough credits" : result.error;
-          setTimeout(() => {
-            buyBtn.classList.remove("error");
-            buyBtn.textContent = "Buy";
-          }, 2200);
-          return;
-        }
-        const item = COSMETICS.find((entry) => entry.id === id);
-        if (item) {
-          COSMETICS.forEach((entry) => {
-            if (entry.category === item.category) entry.equipped = false;
-          });
-          item.equipped = true;
-          setEquippedCosmetic(item.category, id);
-        }
-        renderCosmeticsGrid();
-      }
-      return;
-    }
-
-    const card = e.target.closest("[data-open-cosmetic]");
-    if (card) openCosmeticDetail(card.dataset.openCosmetic);
-  });
-
-  grid.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    const card = e.target.closest("[data-open-cosmetic]");
-    if (!card || e.target.closest("input") || e.target.closest("button")) return;
-    e.preventDefault();
-    openCosmeticDetail(card.dataset.openCosmetic);
-  });
-
-  grid.addEventListener("change", (e) => {
-    const id = e.target.dataset.cosmeticToggle;
-    if (!id) return;
-
-    const item = COSMETICS.find((entry) => entry.id === id);
-    if (!item) return;
-    if (item.price && !isCosmeticOwned(id)) {
-      e.target.checked = false;
-      return;
-    }
-
-    if (e.target.checked) {
-      COSMETICS.forEach((entry) => {
-        if (entry.category === item.category) entry.equipped = entry.id === id;
-      });
-      setEquippedCosmetic(item.category, id);
-    } else {
-      item.equipped = false;
-      setEquippedCosmetic(item.category, null);
-    }
-
-    renderCosmeticsGrid();
-  });
 }
 
 function initAccount() {
@@ -1652,10 +508,10 @@ function applyAccentColor(accentId) {
   const color = getAccentColor(accentId);
   const [r, g, b] = hexToRgb(color.value);
 
-  document.documentElement.style.setProperty("--sc-accent", color.value);
-  document.documentElement.style.setProperty("--sc-accent-rgb", `${r}, ${g}, ${b}`);
-  document.documentElement.style.setProperty("--sc-accent-muted", `rgba(${r}, ${g}, ${b}, 0.15)`);
-  document.documentElement.style.setProperty("--sc-accent-glow", `rgba(${r}, ${g}, ${b}, 0.22)`);
+  document.documentElement.style.setProperty("--sl-accent", color.value);
+  document.documentElement.style.setProperty("--sl-accent-rgb", `${r}, ${g}, ${b}`);
+  document.documentElement.style.setProperty("--sl-accent-muted", `rgba(${r}, ${g}, ${b}, 0.15)`);
+  document.documentElement.style.setProperty("--sl-accent-glow", `rgba(${r}, ${g}, ${b}, 0.22)`);
 
   document.querySelectorAll(".accent-swatch").forEach((swatch) => {
     const isActive = swatch.dataset.accent === color.id;
@@ -1987,16 +843,26 @@ function initAutoUpdaterUI() {
 
 const STORE_CREDITS_PER_EUR = 100;
 const STORE_TAX_RATE = 0;
-const CREDITS_STORAGE_KEY = "sc-credits";
+const CREDITS_STORAGE_KEY = "sl-credits";
 
-/** Backend payments API — override with localStorage `sc-payments-api` if needed. */
+/** Migrate payments/credits keys from Space Client era. */
+(function migratePaymentsKeys() {
+  if (localStorage.getItem("sl-credits") == null && localStorage.getItem("sc-credits") != null) {
+    localStorage.setItem("sl-credits", localStorage.getItem("sc-credits"));
+  }
+  if (localStorage.getItem("sl-payments-api") == null && localStorage.getItem("sc-payments-api") != null) {
+    localStorage.setItem("sl-payments-api", localStorage.getItem("sc-payments-api"));
+  }
+})();
+
+/** Backend payments API — override with localStorage `sl-payments-api` if needed. */
 let PAYMENTS_API_BASE =
-  (typeof localStorage !== "undefined" && localStorage.getItem("sc-payments-api")) ||
+  (typeof localStorage !== "undefined" && localStorage.getItem("sl-payments-api")) ||
   "http://localhost:8787";
 
 async function resolvePaymentsApiBase() {
   const override =
-    typeof localStorage !== "undefined" && localStorage.getItem("sc-payments-api");
+    typeof localStorage !== "undefined" && localStorage.getItem("sl-payments-api");
   if (override) {
     PAYMENTS_API_BASE = override.replace(/\/$/, "");
     return PAYMENTS_API_BASE;
@@ -2123,7 +989,7 @@ async function syncPlayerEntitlementsFromBackend() {
     }
     if (typeof player.spacePlus === "boolean") {
       localStorage.setItem(SPACEPLUS_SUB_KEY, player.spacePlus ? "true" : "false");
-      document.dispatchEvent(new CustomEvent("sc-spaceplus-sync"));
+      document.dispatchEvent(new CustomEvent("sl-spaceplus-sync"));
     }
     return player;
   } catch {
@@ -2446,7 +1312,8 @@ function initSpacePlus() {
 
   function toggleDemoSubscription() {
     localStorage.setItem(SPACEPLUS_SUB_KEY, isSubscribed() ? "false" : "true");
-    document.dispatchEvent(new CustomEvent("sc-spaceplus-sync"));
+    document.dispatchEvent(new CustomEvent("sl-spaceplus-sync"));
+    window.dispatchEvent(new CustomEvent("space-entitlements-changed"));
   }
 
   function manageSubscription() {
@@ -2461,10 +1328,12 @@ function initSpacePlus() {
   document.getElementById("spaceplus-billing-manage-btn")?.addEventListener("click", manageSubscription);
   document.getElementById("spaceplus-demo-toggle")?.addEventListener("click", toggleDemoSubscription);
 
-  document.addEventListener("sc-spaceplus-sync", () => {
+  document.addEventListener("sl-spaceplus-sync", () => {
     updateSubscriptionUI();
     syncCosmeticEquippedState();
     renderCosmeticsGrid();
+    window.SpaceAds?.refresh?.();
+    window.dispatchEvent(new CustomEvent("space-entitlements-changed"));
     const spacePlusRow = document.getElementById("account-spaceplus-value");
     if (spacePlusRow && currentAuthState.isLoggedIn) {
       const plus = isSpacePlusActive();
@@ -2564,12 +1433,11 @@ function buildLaunchCrashTips(logText = "", exitCode = null) {
   const tips = [];
 
   if (/ClientBrandRetrieverMixin|InvalidInjectionException|Mixin transformation/i.test(text)) {
-    tips.push("Space Client core mixin failed — rebuild/update space-client-core (npm run build:mods) and relaunch.");
-    tips.push("Make sure Cosmetics / brand mixins target Minecraft 1.21.1 getClientModName, not <clinit>.");
+    tips.push("A Fabric performance mod mixin failed — switch to Lite Boost or Vanilla Fabric under Presets, then relaunch.");
   }
 
   if (/unknown protocol:\s*c|Invalid URL C:/i.test(text)) {
-    tips.push("Log4j Windows path bug — relaunch with the latest Space Client (file:// log config fix). This alone usually does not stop the game.");
+    tips.push("Log4j Windows path bug — relaunch with the latest Space Launcher (file:// log config fix). This alone usually does not stop the game.");
   }
 
   if (/OutOfMemoryError|Java heap space|GC overhead/i.test(text)) {
@@ -2581,7 +1449,7 @@ function buildLaunchCrashTips(logText = "", exitCode = null) {
   }
 
   if (/Could not find or load main class|NoClassDefFoundError|ClassNotFoundException/i.test(text)) {
-    tips.push("Game files look incomplete — relaunch so assets/libraries re-download, or delete the SpaceClient .minecraft folder and try again.");
+    tips.push("Game files look incomplete — relaunch so assets/libraries re-download, or delete the SpaceLauncher .minecraft folder and try again.");
   }
 
   if (/Failed to verify username|Invalid session|401|Unauthorized/i.test(text)) {
@@ -2589,7 +1457,7 @@ function buildLaunchCrashTips(logText = "", exitCode = null) {
   }
 
   if (/fabric-api|ModResolutionException|Incompatible mods/i.test(text)) {
-    tips.push("Fabric API / mod conflict — remove extra jars from .minecraft/mods and keep only Space Client injection.");
+    tips.push("Fabric API / mod conflict — clear .minecraft/mods and let Space Launcher inject the performance pack from natives.");
   }
 
   if (exitCode === 1 || exitCode === -1 || /Minecraft has crashed|exited with code [^0]/i.test(text)) {
@@ -2803,6 +1671,11 @@ function initPlayButton() {
   btn.addEventListener("click", async () => {
     if (btn.disabled || launching) return;
 
+    if (window.SpaceAds?.maybeShowPlayInterstitial) {
+      const continuePlay = await window.SpaceAds.maybeShowPlayInterstitial();
+      if (!continuePlay) return;
+    }
+
     if (!api?.launchGame) {
       clearLaunchConsole();
       setLaunchOverlayState("failed");
@@ -2817,6 +1690,7 @@ function initPlayButton() {
     }
 
     launching = true;
+    window.SpaceGUI?.pushActivity?.({ kind: "launch", text: "Started Minecraft launch" });
     lastPercent = 0;
     lastSpeed = 0;
     lastLabel = "Preparing launch…";
@@ -2835,7 +1709,7 @@ function initPlayButton() {
       detail: "",
       speed: 0,
     }, { resetPercent: true });
-    appendLaunchConsoleLine("Starting Space Client launch pipeline…");
+    appendLaunchConsoleLine("Starting Space Launcher launch pipeline…");
 
     const version =
       document.getElementById("home-version")?.value ||
@@ -2846,10 +1720,20 @@ function initPlayButton() {
       modrinthState.homeLoader ||
       "fabric";
     const memoryGb = getRamGb();
-    const equippedCape = getEquippedCosmetics().capes || null;
+    const equippedProfile =
+      window.SpaceCosmetics?.getProfileForLaunch?.() || {};
+    const perfPack = window.SpacePerformance?.getPack?.() || "standard";
+    const spacePlus = isSpacePlusActive();
 
     try {
-      const result = await api.launchGame({ version, loader, memoryGb, equippedCape });
+      const result = await api.launchGame({
+        version,
+        loader,
+        memoryGb,
+        perfPack,
+        spacePlus,
+        equippedProfile,
+      });
       if (!result?.success) {
         launching = false;
         setLaunchOverlayState("failed");
@@ -2890,8 +1774,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   initModDetailPanel();
   initCosmeticDetailPanel();
   initCosmetics();
+  window.initPerformancePresets?.();
   initSocial();
   initAssistant();
+  initInteractiveGui();
+  initAds();
   initAccount();
   initStore();
   initSpacePlus();
@@ -2900,4 +1787,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAutoUpdaterUI();
   initPlayButton();
   updateActiveModCount();
+
+  document.getElementById("home-open-friends")?.addEventListener("click", () => {
+    navigateToView("friends");
+  });
+
+  window.SpaceLauncherAuth = {
+    getUsername: () => getCurrentUsername(),
+  };
 });

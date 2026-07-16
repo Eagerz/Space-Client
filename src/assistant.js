@@ -1,5 +1,5 @@
 /**
- * Space Client — Space AI assistant panel
+ * Space Launcher — Space AI assistant panel
  * Local mock replies + IPC-ready hooks (window.SpaceAssistant).
  */
 (function () {
@@ -9,11 +9,6 @@
   let messages = [];
 
   window.SpaceAssistant = {
-    /**
-     * Wire to Node/socket backend later.
-     * @param {{ text: string, history: typeof messages }} payload
-     * @returns {Promise<string>|string}
-     */
     async onSendPrompt(payload) {
       console.info("[SpaceAssistant] onSendPrompt", payload);
       return mockReply(payload.text);
@@ -30,22 +25,22 @@
 
   function mockReply(text) {
     const q = String(text).toLowerCase();
-    if (q.includes("cape")) {
-      return "Open Cosmetics → Capes, equip one you own, then hit PLAY. Space Client stages the texture into your game folder automatically.";
+    if (q.includes("cosmetic") || q.includes("badge") || q.includes("frame") || q.includes("theme") || q.includes("cape")) {
+      return "Open Cosmetics to equip badges, frames, and launcher themes. Space+ unlocks exclusive flair. These show in Space Launcher — there is no Right Shift / ClickGUI anymore.";
     }
-    if (q.includes("fps") || q.includes("hypixel")) {
-      return "For Hypixel: turn on FPS Boost in ClickGUI (Right Shift), lower particles, disable clouds, and keep Java allocation at 4–6 GB. Unfocused FPS helps when alt-tabbed.";
+    if (q.includes("fps") || q.includes("boost") || q.includes("performance") || q.includes("hypixel")) {
+      return "Open Performance in the sidebar and pick Lite Boost (low-end) or Standard Boost. Space+ unlocks Max Boost. Jars inject at launch via Fabric — nothing goes into .minecraft/mods.";
     }
     if (q.includes("space+") || q.includes("space plus")) {
-      return "Space+ unlocks exclusive cosmetics (Plus Sigil, Member Orbit, Priority Flare) and premium perks. Open the Space+ tab in the sidebar to subscribe.";
+      return "Space+ unlocks Max Boost, exclusive profile cosmetics, ad-free browsing, and early launcher betas. Open the Space+ tab to join.";
     }
     if (q.includes("friend") || q.includes("social")) {
-      return "Friends live in the Friends tab — search, DM, and Quick Join when they're on a public server. Add Friend sends a username request (socket wiring coming soon).";
+      return "Friends live in the Friends tab — search, DM, and Quick Join when they're on a public server.";
     }
     if (q.includes("mod")) {
-      return "Browse Modrinth from the Mod Library tab. Space Client injects its own core + Fabric API from natives — keep Fabric selected on Home.";
+      return "Browse Modrinth from Mod Library. For FPS, use Performance packs — Space Launcher injects Sodium-stack jars automatically when you hit PLAY with Fabric selected.";
     }
-    return "I'm Space AI — ask about capes, mods, Space+, FPS, or friends. Full backend wiring will replace these local tips soon.";
+    return "I'm Space AI — ask about performance packs, cosmetics, Space+, mods, or friends.";
   }
 
   function render() {
@@ -57,7 +52,7 @@
         <div class="assistant-welcome">
           <div class="assistant-welcome-orb" aria-hidden="true">✦</div>
           <h3>Space AI</h3>
-          <p>Ask anything about Space Client — launch, cosmetics, mods, or social.</p>
+          <p>Ask anything about Space Launcher — performance, cosmetics, mods, or social.</p>
         </div>`;
       return;
     }
@@ -80,31 +75,21 @@
     messages.push({ id: `u-${Date.now()}`, role: "user", text: clean });
     render();
 
-    const reply = await window.SpaceAssistant.onSendPrompt({
-      text: clean,
-      history: messages.slice(),
-    });
-
-    messages.push({
-      id: `a-${Date.now()}`,
-      role: "assistant",
-      text: String(reply || "…"),
-    });
+    const reply = await window.SpaceAssistant.onSendPrompt({ text: clean, history: messages.slice() });
+    messages.push({ id: `a-${Date.now()}`, role: "assistant", text: String(reply || "") });
     render();
   }
 
   function initAssistant() {
     if (!document.getElementById("view-assistant")) return;
-
     render();
 
     document.getElementById("assistant-compose")?.addEventListener("submit", (e) => {
       e.preventDefault();
       const input = document.getElementById("assistant-input");
       if (!input) return;
-      const value = input.value;
+      send(input.value);
       input.value = "";
-      send(value);
     });
 
     document.getElementById("assistant-clear")?.addEventListener("click", () => {
@@ -112,8 +97,10 @@
       render();
     });
 
-    document.querySelectorAll("#assistant-suggestions [data-prompt]").forEach((btn) => {
-      btn.addEventListener("click", () => send(btn.getAttribute("data-prompt")));
+    document.getElementById("assistant-suggestions")?.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-prompt]");
+      if (!chip) return;
+      send(chip.getAttribute("data-prompt"));
     });
   }
 

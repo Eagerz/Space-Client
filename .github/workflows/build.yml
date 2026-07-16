@@ -1,5 +1,5 @@
-# Tag-triggered multi-platform Electron release for Space Client.
-# Push a version tag (e.g. v1.0.1) to build installers + updater metadata
+# Tag-triggered multi-platform Electron release for Space Launcher.
+# Push a version tag (e.g. v1.1.0) to build installers + updater metadata
 # and attach them to the matching GitHub Release (electron-updater / website).
 #
 # Signing is optional: builds succeed unsigned when cert secrets are absent.
@@ -28,7 +28,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Space Client ${{ github.ref_name }}
+          name: Space Launcher ${{ github.ref_name }}
           generate_release_notes: true
           draft: false
 

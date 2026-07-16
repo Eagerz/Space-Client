@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("auth-state-changed", listener);
   },
 
-  /** @param {{ version?: string, loader?: string, memoryGb?: number, equippedCape?: string | null }} options */
+  /** @param {{ version?: string, loader?: string, memoryGb?: number, perfPack?: string, spacePlus?: boolean, equippedProfile?: object }} options */
   launchGame: (options) => ipcRenderer.invoke("launch:start", options),
   isLaunchRunning: () => ipcRenderer.invoke("launch:is-running"),
   onLaunchProgress: (callback) => {

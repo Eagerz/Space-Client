@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Bump Space Client semver, build the Electron app, and publish to GitHub Releases
+ * Bump Space Launcher semver, build the Electron app, and publish to GitHub Releases
  * so installed clients see the in-app update notification.
  *
  * Usage:
@@ -51,35 +51,24 @@ function writePkg(pkg) {
 }
 
 function nativesManifestPath() {
-  if (process.env.SPACE_CLIENT_NATIVES) {
-    return path.join(path.resolve(process.env.SPACE_CLIENT_NATIVES), 'natives.manifest.json');
+  if (process.env.SPACE_LAUNCHER_NATIVES || process.env.SPACE_CLIENT_NATIVES) {
+    return path.join(
+      path.resolve(process.env.SPACE_LAUNCHER_NATIVES || process.env.SPACE_CLIENT_NATIVES),
+      'natives.manifest.json'
+    );
   }
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(local, 'SpaceClient', 'natives', 'natives.manifest.json');
+    return path.join(local, 'SpaceLauncher', 'natives', 'natives.manifest.json');
   }
   if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceClient', 'natives', 'natives.manifest.json');
+    return path.join(os.homedir(), 'Library', 'Application Support', 'SpaceLauncher', 'natives', 'natives.manifest.json');
   }
-  return path.join(os.homedir(), '.local', 'share', 'SpaceClient', 'natives', 'natives.manifest.json');
+  return path.join(os.homedir(), '.local', 'share', 'SpaceLauncher', 'natives', 'natives.manifest.json');
 }
 
 function jarReleaseNote() {
-  const manifestPath = nativesManifestPath();
-  if (!fs.existsSync(manifestPath)) {
-    return 'Includes latest space-client-core.jar staging.';
-  }
-  try {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
-    const entry = manifest?.files?.['space-client-core.jar'];
-    if (!entry?.sha256) {
-      return 'Includes latest space-client-core.jar staging.';
-    }
-    const short = String(entry.sha256).slice(0, 12);
-    return `Includes space-client-core.jar (sha256 ${short}…).`;
-  } catch {
-    return 'Includes latest space-client-core.jar staging.';
-  }
+  return 'Includes Fabric performance pack injection (Sodium stack via natives).';
 }
 
 function hasPublishToken() {
@@ -159,7 +148,7 @@ function runPublish({ dryRun, skipBump, reason }) {
   }
 
   console.log(`[publish] Released v${newVersion} to GitHub Releases.`);
-  console.log('[publish] Installed Space Client builds will show the update notification on next check.');
+  console.log('[publish] Installed Space Launcher builds will show the update notification on next check.');
   return 0;
 }
 

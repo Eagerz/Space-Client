@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.modrinth.com https://mc-heads.net http://localhost:8787 https://api.spaceclient.app; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://mc-heads.net https://cdn.modrinth.com https://textures.minecraft.net http://textures.minecraft.net data:; script-src 'self'" />
-  <title>Space Client</title>
+  <title>Space Launcher</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Syne:wght@800&display=swap" rel="stylesheet" />
@@ -16,6 +16,7 @@
   <header class="titlebar">
     <div class="titlebar-left" aria-hidden="true"></div>
     <div class="titlebar-player">
+      <span class="titlebar-cosmetic-badge" id="titlebar-cosmetic-badge" data-swatch="orbit" aria-hidden="true"></span>
       <span class="titlebar-status-dot offline" id="titlebar-status-dot" aria-hidden="true"></span>
       <span class="titlebar-player-name" id="titlebar-player-name">Guest</span>
       <span class="titlebar-role-badge" id="titlebar-role-badge" hidden></span>
@@ -50,8 +51,8 @@
       <button class="nav-btn" data-view="friends" type="button" title="Friends">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
       </button>
-      <button class="nav-btn" data-view="presets" type="button" title="Presets">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h10M4 18h16"/><circle cx="18" cy="12" r="2" fill="currentColor"/></svg>
+      <button class="nav-btn" data-view="presets" type="button" title="Performance">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       </button>
       <button class="nav-btn" data-view="assistant" type="button" title="AI Assistant">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M5 19l.8 2.2L8 22l-2.2.8L5 25l-.8-2.2L2 22l2.2-.8L5 19z" transform="translate(0 -4)"/><circle cx="19" cy="5" r="1.5" fill="currentColor"/></svg>
@@ -189,6 +190,7 @@
               <p class="hero-greeting">
                 Welcome aboard, <span class="hero-greeting-name" id="hero-greeting-name">Guest</span>
               </p>
+              <p class="hero-hint">Press <kbd>Ctrl</kbd>+<kbd>K</kbd> to jump anywhere</p>
             </div>
             <button class="btn-play" type="button" disabled aria-disabled="true" title="Sign in to play">PLAY</button>
           </div>
@@ -200,12 +202,35 @@
             <option value="vanilla">Vanilla</option>
           </select>
         </div>
-        <section class="home-news" aria-labelledby="home-news-heading">
-          <header class="home-news-header">
-            <h2 id="home-news-heading">Latest</h2>
-          </header>
-          <div class="home-news-list" id="home-news-list"></div>
+
+        <section class="home-hub" aria-label="Quick actions">
+          <div class="home-quick-actions" id="home-quick-actions"></div>
         </section>
+
+        <section class="home-presence" aria-labelledby="home-presence-heading">
+          <header class="home-news-header home-presence-header">
+            <h2 id="home-presence-heading">Friends online</h2>
+            <button type="button" class="home-section-link" id="home-open-friends">Open Friends</button>
+          </header>
+          <div class="home-friends-strip" id="home-friends-strip"></div>
+        </section>
+
+        <div class="ad-slot ad-slot-home" id="ad-slot-home" hidden aria-label="Sponsored"></div>
+
+        <div class="home-split">
+          <section class="home-news" aria-labelledby="home-news-heading">
+            <header class="home-news-header">
+              <h2 id="home-news-heading">Latest</h2>
+            </header>
+            <div class="home-news-list" id="home-news-list"></div>
+          </section>
+          <section class="home-activity" aria-labelledby="home-activity-heading">
+            <header class="home-news-header">
+              <h2 id="home-activity-heading">Activity</h2>
+            </header>
+            <div class="home-activity-list" id="home-activity-list"></div>
+          </section>
+        </div>
       </section>
 
       <section class="view" id="view-mods">
@@ -235,6 +260,7 @@
           </div>
         </header>
         <div class="modrinth-meta" id="modrinth-meta"></div>
+        <div class="ad-slot ad-slot-mods" id="ad-slot-mods" hidden aria-label="Sponsored"></div>
         <div class="modrinth-grid" id="modrinth-grid"></div>
         <div class="modrinth-pagination" id="modrinth-pagination"></div>
       </section>
@@ -252,16 +278,17 @@
       <section class="view" id="view-cosmetics">
         <header class="section-header">
           <h2>Cosmetics</h2>
-          <p>Browse and equip capes and pets for your profile</p>
+          <p>Profile badges, avatar frames, and launcher themes — shown in Space Launcher</p>
         </header>
         <div class="cosmetics-toolbar">
           <div class="cosmetics-tabs" role="tablist" aria-label="Cosmetic categories">
-            <button type="button" class="cosmetics-tab active" data-cosmetics-tab="capes" role="tab" aria-selected="true">Capes</button>
-            <button type="button" class="cosmetics-tab" data-cosmetics-tab="pets" role="tab" aria-selected="false">Pets</button>
+            <button type="button" class="cosmetics-tab active" data-cosmetics-tab="badges" role="tab" aria-selected="true">Badges</button>
+            <button type="button" class="cosmetics-tab" data-cosmetics-tab="frames" role="tab" aria-selected="false">Frames</button>
+            <button type="button" class="cosmetics-tab" data-cosmetics-tab="themes" role="tab" aria-selected="false">Themes</button>
           </div>
           <p class="cosmetics-meta" id="cosmetics-meta"></p>
         </div>
-        <div class="cosmetics-grid" id="cosmetics-grid"></div>
+        <div class="cosmetics-grid cosmo-grid" id="cosmetics-grid"></div>
       </section>
 
       <section class="view view-fill" id="view-friends">
@@ -269,7 +296,7 @@
           <header class="social-topbar">
             <div>
               <h2 class="social-title">Friends</h2>
-              <p class="social-subtitle">Presence, DMs, and quick join</p>
+              <p class="social-subtitle">Presence, DMs, requests, and quick join</p>
             </div>
             <button type="button" class="social-add-btn" id="social-open-add" aria-haspopup="dialog">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -279,6 +306,13 @@
 
           <div class="social-dashboard">
             <aside class="social-sidebar glass-panel" aria-label="Friends list">
+              <div class="social-tabs" role="tablist" aria-label="Friends panels">
+                <button type="button" class="social-tab is-active" data-social-tab="friends" role="tab" aria-selected="true">Friends</button>
+                <button type="button" class="social-tab" data-social-tab="requests" role="tab" aria-selected="false">
+                  Requests
+                  <span class="social-request-count" id="social-request-count" hidden>0</span>
+                </button>
+              </div>
               <div class="social-search-wrap">
                 <svg class="social-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
                 <input type="search" class="social-search" id="social-search" placeholder="Search friends…" autocomplete="off" />
@@ -303,12 +337,15 @@
                     <div>
                       <div class="social-chat-name-row">
                         <strong id="social-chat-name">Friend</strong>
-                        <span class="social-space-star" id="social-chat-star" hidden title="Online on Space Client" aria-label="Online on Space Client">✦</span>
+                        <span class="social-space-star" id="social-chat-star" hidden title="Online on Space Launcher" aria-label="Online on Space Launcher">✦</span>
                       </div>
                       <p class="social-chat-status" id="social-chat-status"></p>
                     </div>
                   </div>
-                  <button type="button" class="social-join-btn" id="social-quick-join" hidden>Quick Join Server</button>
+                  <div class="social-chat-actions">
+                    <button type="button" class="social-join-btn" id="social-quick-join" hidden>Quick Join Server</button>
+                    <button type="button" class="social-remove-btn" id="social-remove-friend" hidden title="Remove friend">Remove</button>
+                  </div>
                 </header>
 
                 <div class="social-messages" id="social-messages" role="log" aria-live="polite"></div>
@@ -361,8 +398,8 @@
               </button>
             </form>
             <div class="assistant-suggestions" id="assistant-suggestions" aria-label="Suggestions">
-              <button type="button" class="assistant-chip" data-prompt="How do I equip a cape?">Equip a cape</button>
-              <button type="button" class="assistant-chip" data-prompt="Best FPS settings for Hypixel?">FPS settings</button>
+              <button type="button" class="assistant-chip" data-prompt="How do performance packs work?">Performance packs</button>
+              <button type="button" class="assistant-chip" data-prompt="How do I equip cosmetics?">Cosmetics</button>
               <button type="button" class="assistant-chip" data-prompt="What is Space+?">What is Space+?</button>
             </div>
           </div>
@@ -371,26 +408,27 @@
 
       <section class="view" id="view-presets">
         <header class="section-header">
-          <h2>Presets</h2>
-          <p>Save and switch between launch configurations</p>
+          <h2>Performance</h2>
+          <p>Inject Fabric optimization jars at launch — nothing is copied into .minecraft/mods</p>
         </header>
-        <div class="presets-placeholder">
-          <p>Preset management coming soon.</p>
+        <div class="perf-active-bar">
+          <span>Active pack</span>
+          <strong id="perf-active-label">Standard Boost</strong>
         </div>
+        <div class="perf-packs-grid" id="perf-packs-grid"></div>
       </section>
 
       <section class="view" id="view-spaceplus">
         <header class="section-header">
           <h2>Space+</h2>
-          <p>Premium subscription with exclusive perks and early access</p>
+          <p>The membership built for Space Launcher — boosts, flair, and zero ads</p>
         </header>
 
-        <div class="spaceplus-page">
-          <div class="spaceplus-hero">
-            <span class="spaceplus-badge">Premium</span>
-            <div class="spaceplus-hero-icon" aria-hidden="true"></div>
-            <h3 class="spaceplus-hero-title">Unlock the full Space experience</h3>
-            <p class="spaceplus-hero-sub">Priority access and exclusive cosmetics — all in one subscription.</p>
+        <div class="spaceplus-page spaceplus-page-v2">
+          <div class="spaceplus-hero spaceplus-hero-v2">
+            <p class="spaceplus-kicker">Space Launcher membership</p>
+            <h3 class="spaceplus-hero-title">Play smoother. Look sharper. Stay ad-free.</h3>
+            <p class="spaceplus-hero-sub">Max Boost performance packs, exclusive profile cosmetics, and a quieter launcher.</p>
 
             <div class="spaceplus-billing-toggle" role="group" aria-label="Billing interval">
               <button type="button" class="spaceplus-toggle-btn active" data-interval="monthly">Monthly</button>
@@ -406,18 +444,33 @@
             </div>
 
             <div class="spaceplus-cta-block" id="spaceplus-upgrade-block">
-              <button type="button" class="btn-spaceplus-upgrade" id="spaceplus-upgrade-btn">Upgrade to Space+</button>
+              <button type="button" class="btn-spaceplus-upgrade" id="spaceplus-upgrade-btn">Join Space+</button>
               <p class="spaceplus-checkout-error" id="spaceplus-checkout-error" hidden role="alert"></p>
             </div>
 
             <div class="spaceplus-cta-block spaceplus-subscribed" id="spaceplus-subscribed-block" hidden>
-              <p class="spaceplus-renewal">Next Renewal: <strong>August 1st, 2026</strong></p>
+              <p class="spaceplus-renewal">You're on Space+ · Next renewal <strong>August 1st, 2026</strong></p>
               <button type="button" class="btn-spaceplus-manage" id="spaceplus-manage-btn">Manage Subscription</button>
             </div>
           </div>
 
+          <div class="spaceplus-perk-strip" aria-label="Space+ highlights">
+            <article class="spaceplus-strip-card">
+              <h4>Max Boost</h4>
+              <p>Full Sodium-stack injection for peak FPS on any PC.</p>
+            </article>
+            <article class="spaceplus-strip-card">
+              <h4>Profile flair</h4>
+              <p>Exclusive badges, frames, and themes in the launcher.</p>
+            </article>
+            <article class="spaceplus-strip-card">
+              <h4>Ad-free</h4>
+              <p>No partner banners or pre-play promos.</p>
+            </article>
+          </div>
+
           <div class="spaceplus-compare">
-            <h3 class="spaceplus-section-title">Compare plans</h3>
+            <h3 class="spaceplus-section-title">Free vs Space+</h3>
             <div class="spaceplus-compare-table-wrap">
               <table class="spaceplus-compare-table">
                 <thead>
@@ -429,79 +482,43 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Priority Launch Queue</td>
-                    <td><span class="spaceplus-val-no">No</span></td>
-                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                    <td>Performance packs</td>
+                    <td><span class="spaceplus-val-muted">Lite &amp; Standard</span></td>
+                    <td><span class="spaceplus-val-yes">Max Boost unlocked</span></td>
                   </tr>
                   <tr>
-                    <td>Exclusive Launcher Cosmetics</td>
-                    <td><span class="spaceplus-val-no">No</span></td>
-                    <td><span class="spaceplus-val-yes">Yes, 5+ unlocked</span></td>
+                    <td>Profile cosmetics</td>
+                    <td><span class="spaceplus-val-muted">Free tier</span></td>
+                    <td><span class="spaceplus-val-yes">All exclusives</span></td>
                   </tr>
                   <tr>
-                    <td>Discord Premium Role &amp; Beta Features</td>
-                    <td><span class="spaceplus-val-no">No</span></td>
-                    <td><span class="spaceplus-val-yes">Yes</span></td>
+                    <td>Promotional content</td>
+                    <td><span class="spaceplus-val-no">Partner promos</span></td>
+                    <td><span class="spaceplus-val-yes">None</span></td>
                   </tr>
                   <tr>
-                    <td>Custom Launcher Profile Badge</td>
-                    <td><span class="spaceplus-val-muted">Standard</span></td>
-                    <td><span class="spaceplus-val-yes">Animated Star</span></td>
+                    <td>Launcher betas</td>
+                    <td><span class="spaceplus-val-no">Stable only</span></td>
+                    <td><span class="spaceplus-val-yes">Early access</span></td>
+                  </tr>
+                  <tr>
+                    <td>Discord role</td>
+                    <td><span class="spaceplus-val-no">Standard</span></td>
+                    <td><span class="spaceplus-val-yes">Space+ member</span></td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div class="spaceplus-perks">
-            <h3 class="spaceplus-section-title">Premium perks</h3>
-            <div class="spaceplus-perks-grid">
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                </div>
-                <h4>Priority Launch Queue</h4>
-                <p>Skip the line and launch first during peak hours.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
-                </div>
-                <h4>Exclusive Cosmetics</h4>
-                <p>Member-only animated capes: Plus Sigil, Member Orbit, and Priority Flare.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                </div>
-                <h4>Discord Premium Role</h4>
-                <p>Exclusive role and early beta feature access.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17l-6.3 4 2.3-7-6-4.6h7.6L12 2z"/></svg>
-                </div>
-                <h4>Animated Star Badge</h4>
-                <p>Stand out with a shimmering profile badge.</p>
-              </article>
-              <article class="spaceplus-perk-card">
-                <div class="spaceplus-perk-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <h4>Early Access</h4>
-                <p>Be first to try new launcher features and updates.</p>
-              </article>
-            </div>
-          </div>
-
           <div class="spaceplus-billing-block">
             <div class="spaceplus-billing-inner">
               <div class="spaceplus-billing-info">
-                <h3 class="spaceplus-section-title">Billing &amp; plan</h3>
-                <p class="spaceplus-billing-desc" id="spaceplus-billing-desc">Subscribe to Space+ for premium perks across the launcher.</p>
+                <h3 class="spaceplus-section-title">Billing</h3>
+                <p class="spaceplus-billing-desc" id="spaceplus-billing-desc">Cancel anytime. Perks apply across Space Launcher instantly after checkout.</p>
               </div>
               <div class="spaceplus-billing-actions" id="spaceplus-billing-actions">
-                <button type="button" class="btn-spaceplus-upgrade btn-spaceplus-upgrade-sm" id="spaceplus-billing-upgrade-btn">Upgrade to Space+</button>
+                <button type="button" class="btn-spaceplus-upgrade btn-spaceplus-upgrade-sm" id="spaceplus-billing-upgrade-btn">Join Space+</button>
               </div>
               <div class="spaceplus-billing-actions spaceplus-subscribed" id="spaceplus-billing-subscribed" hidden>
                 <p class="spaceplus-renewal-inline">Next Renewal: <strong>August 1st, 2026</strong></p>
@@ -739,9 +756,19 @@
           <div class="settings-row">
             <div>
               <div class="settings-row-label">Launcher Updates</div>
-              <div class="settings-row-desc">Check GitHub Releases for a newer Space Client build</div>
+              <div class="settings-row-desc">Check GitHub Releases for a newer Space Launcher build</div>
             </div>
             <button type="button" class="btn-check-updates" id="btn-check-updates">Check for updates</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Hide promotional content</div>
+              <div class="settings-row-desc">Partner banners and pre-play promos · <span id="ads-status-label">Showing partner promos</span></div>
+            </div>
+            <label class="toggle" title="Hide promotional content">
+              <input type="checkbox" id="ads-opt-out-toggle" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
           </div>
         </div>
         <p class="settings-update-status" id="settings-update-status" hidden role="status"></p>
@@ -867,7 +894,7 @@
   <div class="launch-overlay-veil" aria-hidden="true"></div>
   <div class="launch-overlay-card" role="dialog" aria-modal="true" aria-labelledby="launch-progress-label">
     <div class="launch-overlay-top">
-      <p class="launch-overlay-kicker">Space Client</p>
+      <p class="launch-overlay-kicker">Space Launcher</p>
       <button type="button" class="launch-overlay-dismiss" id="launch-overlay-dismiss" aria-label="Close launch overlay">
         <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4"><path d="M1 1l10 10M11 1L1 11"/></svg>
       </button>
@@ -906,13 +933,21 @@
   </div>
 </div>
 
+<div class="ad-interstitial" id="ad-interstitial" hidden aria-hidden="true">
+  <div class="ad-interstitial-veil" aria-hidden="true"></div>
+  <div class="ad-interstitial-card" role="dialog" aria-modal="true" aria-labelledby="ad-interstitial-title">
+    <p class="ad-interstitial-kicker" id="ad-interstitial-title">Before you launch</p>
+    <div id="ad-interstitial-body"></div>
+  </div>
+</div>
+
 <aside class="update-drawer" id="update-drawer" hidden aria-hidden="true" aria-live="polite">
   <button type="button" class="update-drawer-dismiss" id="update-drawer-dismiss" aria-label="Dismiss update">
     <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4"><path d="M1 1l10 10M11 1L1 11"/></svg>
   </button>
 
   <div class="update-drawer-state" data-update-state="available" id="update-state-available" hidden>
-    <p class="update-drawer-kicker">Space Client</p>
+    <p class="update-drawer-kicker">Space Launcher</p>
     <h2 class="update-drawer-title" id="update-available-title">New Update Available!</h2>
     <p class="update-drawer-sub" id="update-available-sub">A newer launcher build is ready to download.</p>
     <button type="button" class="btn-update-primary" id="update-download-btn">Download Now</button>
@@ -933,7 +968,7 @@
   <div class="update-drawer-state" data-update-state="ready" id="update-state-ready" hidden>
     <p class="update-drawer-kicker">Ready</p>
     <h2 class="update-drawer-title">Update ready to install!</h2>
-    <p class="update-drawer-sub">Relaunch to apply the new Space Client build.</p>
+    <p class="update-drawer-sub">Relaunch to apply the new Space Launcher build.</p>
     <button type="button" class="btn-update-primary" id="update-install-btn">Relaunch &amp; Apply</button>
   </div>
 
@@ -948,6 +983,10 @@
 <script src="modrinth.js"></script>
 <script src="social.js"></script>
 <script src="assistant.js"></script>
+<script src="gui.js"></script>
+<script src="ads.js"></script>
+<script src="cosmetics.js"></script>
+<script src="performance.js"></script>
 <script src="renderer.js"></script>
 </body>
 </html>
