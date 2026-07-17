@@ -4,6 +4,18 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Large official Minecraft trailer MP4s (fetched via scripts/fetch-home-trailers.js)
+src/assets/video/trailers/*.mp4
+
 # Stripe payments backend secrets & player DB
 backend/.env
 backend/data/
+
+# Expo mobile
+mobile/.env
+mobile/.expo/
+mobile/dist/
+
+# Cursor project agents — local only (AI-editable; not published to GitHub).
+# Includes electron-auto-updater and release helpers used for the cloud update system.
+.cursor/agents/
