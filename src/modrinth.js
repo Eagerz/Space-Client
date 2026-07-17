@@ -1,8 +1,16 @@
 const MODRINTH_API = "https://api.modrinth.com/v2";
 
 const Modrinth = {
-  async search({ query = "", loader = "fabric", version = "1.21.1", index = "downloads", offset = 0, limit = 20 } = {}) {
-    const facets = [["project_type:mod"], [`versions:${version}`]];
+  async search({
+    query = "",
+    loader = "fabric",
+    version = "1.21.1",
+    index = "downloads",
+    offset = 0,
+    limit = 20,
+    projectType = "mod",
+  } = {}) {
+    const facets = [[`project_type:${projectType}`], [`versions:${version}`]];
     if (loader && loader !== "vanilla") {
       facets.splice(1, 0, [`categories:${loader}`]);
     }
@@ -31,10 +39,11 @@ const Modrinth = {
     if (!res.ok) throw new Error(`Versions unavailable (${res.status})`);
     const versions = await res.json();
 
+    const loaderKey = String(loader || "fabric").toLowerCase();
     return (
       versions.find(
         (v) =>
-          v.loaders?.includes(loader) &&
+          (loaderKey === "vanilla" || v.loaders?.includes(loaderKey)) &&
           v.game_versions?.includes(gameVersion)
       ) ?? null
     );
@@ -55,8 +64,9 @@ const Modrinth = {
     };
   },
 
-  projectUrl(slug) {
-    return `https://modrinth.com/mod/${slug}`;
+  projectUrl(slug, type = "mod") {
+    const kind = type === "modpack" ? "modpack" : "mod";
+    return `https://modrinth.com/${kind}/${slug}`;
   },
 };
 

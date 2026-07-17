@@ -45,6 +45,9 @@
       "auto-updater.js",
       "game-launcher.js",
       "mod-injection.js",
+      "mod-manager.js",
+      "instances.js",
+      "presets.js",
       "payments-config.js",
       "src/**/*"
     ],
