@@ -189,6 +189,7 @@
               <p class="hero-greeting">
                 Welcome aboard, <span class="hero-greeting-name" id="hero-greeting-name">Guest</span>
               </p>
+              <p class="hero-hint">Press <kbd>Ctrl</kbd>+<kbd>K</kbd> to jump anywhere</p>
             </div>
             <button class="btn-play" type="button" disabled aria-disabled="true" title="Sign in to play">PLAY</button>
           </div>
@@ -200,12 +201,35 @@
             <option value="vanilla">Vanilla</option>
           </select>
         </div>
-        <section class="home-news" aria-labelledby="home-news-heading">
-          <header class="home-news-header">
-            <h2 id="home-news-heading">Latest</h2>
-          </header>
-          <div class="home-news-list" id="home-news-list"></div>
+
+        <section class="home-hub" aria-label="Quick actions">
+          <div class="home-quick-actions" id="home-quick-actions"></div>
         </section>
+
+        <section class="home-presence" aria-labelledby="home-presence-heading">
+          <header class="home-news-header home-presence-header">
+            <h2 id="home-presence-heading">Friends online</h2>
+            <button type="button" class="home-section-link" id="home-open-friends">Open Friends</button>
+          </header>
+          <div class="home-friends-strip" id="home-friends-strip"></div>
+        </section>
+
+        <div class="ad-slot ad-slot-home" id="ad-slot-home" hidden aria-label="Sponsored"></div>
+
+        <div class="home-split">
+          <section class="home-news" aria-labelledby="home-news-heading">
+            <header class="home-news-header">
+              <h2 id="home-news-heading">Latest</h2>
+            </header>
+            <div class="home-news-list" id="home-news-list"></div>
+          </section>
+          <section class="home-activity" aria-labelledby="home-activity-heading">
+            <header class="home-news-header">
+              <h2 id="home-activity-heading">Activity</h2>
+            </header>
+            <div class="home-activity-list" id="home-activity-list"></div>
+          </section>
+        </div>
       </section>
 
       <section class="view" id="view-mods">
@@ -235,6 +259,7 @@
           </div>
         </header>
         <div class="modrinth-meta" id="modrinth-meta"></div>
+        <div class="ad-slot ad-slot-mods" id="ad-slot-mods" hidden aria-label="Sponsored"></div>
         <div class="modrinth-grid" id="modrinth-grid"></div>
         <div class="modrinth-pagination" id="modrinth-pagination"></div>
       </section>
@@ -269,7 +294,7 @@
           <header class="social-topbar">
             <div>
               <h2 class="social-title">Friends</h2>
-              <p class="social-subtitle">Presence, DMs, and quick join</p>
+              <p class="social-subtitle">Presence, DMs, requests, and quick join</p>
             </div>
             <button type="button" class="social-add-btn" id="social-open-add" aria-haspopup="dialog">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -279,6 +304,13 @@
 
           <div class="social-dashboard">
             <aside class="social-sidebar glass-panel" aria-label="Friends list">
+              <div class="social-tabs" role="tablist" aria-label="Friends panels">
+                <button type="button" class="social-tab is-active" data-social-tab="friends" role="tab" aria-selected="true">Friends</button>
+                <button type="button" class="social-tab" data-social-tab="requests" role="tab" aria-selected="false">
+                  Requests
+                  <span class="social-request-count" id="social-request-count" hidden>0</span>
+                </button>
+              </div>
               <div class="social-search-wrap">
                 <svg class="social-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
                 <input type="search" class="social-search" id="social-search" placeholder="Search friends…" autocomplete="off" />
@@ -308,7 +340,10 @@
                       <p class="social-chat-status" id="social-chat-status"></p>
                     </div>
                   </div>
-                  <button type="button" class="social-join-btn" id="social-quick-join" hidden>Quick Join Server</button>
+                  <div class="social-chat-actions">
+                    <button type="button" class="social-join-btn" id="social-quick-join" hidden>Quick Join Server</button>
+                    <button type="button" class="social-remove-btn" id="social-remove-friend" hidden title="Remove friend">Remove</button>
+                  </div>
                 </header>
 
                 <div class="social-messages" id="social-messages" role="log" aria-live="polite"></div>
@@ -448,6 +483,11 @@
                     <td><span class="spaceplus-val-muted">Standard</span></td>
                     <td><span class="spaceplus-val-yes">Animated Star</span></td>
                   </tr>
+                  <tr>
+                    <td>Ad-free launcher</td>
+                    <td><span class="spaceplus-val-no">Partner promos</span></td>
+                    <td><span class="spaceplus-val-yes">No ads</span></td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -490,6 +530,13 @@
                 </div>
                 <h4>Early Access</h4>
                 <p>Be first to try new launcher features and updates.</p>
+              </article>
+              <article class="spaceplus-perk-card">
+                <div class="spaceplus-perk-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3l18 18M10.5 6H21v4.5M3 13.5V21h7.5"/><path d="M14 14l7 7"/></svg>
+                </div>
+                <h4>Ad-free launcher</h4>
+                <p>No partner banners or pre-play promos — just Space Client.</p>
               </article>
             </div>
           </div>
@@ -743,6 +790,16 @@
             </div>
             <button type="button" class="btn-check-updates" id="btn-check-updates">Check for updates</button>
           </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Hide promotional content</div>
+              <div class="settings-row-desc">Partner banners and pre-play promos · <span id="ads-status-label">Showing partner promos</span></div>
+            </div>
+            <label class="toggle" title="Hide promotional content">
+              <input type="checkbox" id="ads-opt-out-toggle" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
         </div>
         <p class="settings-update-status" id="settings-update-status" hidden role="status"></p>
       </section>
@@ -906,6 +963,14 @@
   </div>
 </div>
 
+<div class="ad-interstitial" id="ad-interstitial" hidden aria-hidden="true">
+  <div class="ad-interstitial-veil" aria-hidden="true"></div>
+  <div class="ad-interstitial-card" role="dialog" aria-modal="true" aria-labelledby="ad-interstitial-title">
+    <p class="ad-interstitial-kicker" id="ad-interstitial-title">Before you launch</p>
+    <div id="ad-interstitial-body"></div>
+  </div>
+</div>
+
 <aside class="update-drawer" id="update-drawer" hidden aria-hidden="true" aria-live="polite">
   <button type="button" class="update-drawer-dismiss" id="update-drawer-dismiss" aria-label="Dismiss update">
     <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4"><path d="M1 1l10 10M11 1L1 11"/></svg>
@@ -948,6 +1013,8 @@
 <script src="modrinth.js"></script>
 <script src="social.js"></script>
 <script src="assistant.js"></script>
+<script src="gui.js"></script>
+<script src="ads.js"></script>
 <script src="renderer.js"></script>
 </body>
 </html>
