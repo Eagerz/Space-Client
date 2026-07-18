@@ -254,12 +254,22 @@ jobs:
           TAG="${{ steps.ver.outputs.tag }}"
           OUT="Space-Bedrock-${VERSION}-android.apk"
           MANIFEST="android-update.json"
-          SRC=$(find mobile/android/app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+          echo "Searching for APK outputs…"
+          find mobile/android -type f -name "*.apk" 2>/dev/null | head -n 50 || true
+          # Prefer release APKs; skip androidTest / intermediates when possible
+          SRC=$(find mobile/android/app/build/outputs -type f -name "*.apk" 2>/dev/null | grep -v androidTest | head -n 1 || true)
           if [[ -z "$SRC" ]]; then
-            echo "No APK found under mobile/android/app/build/outputs/apk"
-            find mobile/android/app/build/outputs -type f || true
+            SRC=$(find mobile/android -type f -name "*release*.apk" 2>/dev/null | head -n 1 || true)
+          fi
+          if [[ -z "$SRC" ]]; then
+            SRC=$(find mobile/android -type f -name "*.apk" 2>/dev/null | head -n 1 || true)
+          fi
+          if [[ -z "$SRC" ]]; then
+            echo "No APK found under mobile/android"
+            find mobile/android/app/build/outputs -type f 2>/dev/null | head -n 80 || true
             exit 1
           fi
+          echo "Using APK: $SRC"
           cp "$SRC" "$OUT"
           SHA256=$(sha256sum "$OUT" | awk '{print $1}')
           export VERSION VERSION_CODE OUT TAG MANIFEST SHA256
