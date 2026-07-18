@@ -1,0 +1,15 @@
+{
+  "name": "space-apk-updater",
+  "version": "1.0.0",
+  "description": "In-app APK download + FileProvider install for Space Bedrock (sideload updates)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {},
+  "keywords": ["expo", "android", "apk", "update"],
+  "license": "UNLICENSED",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

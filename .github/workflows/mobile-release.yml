@@ -1,0 +1,292 @@
+# Space Bedrock (Expo) mobile release — Android APK → GitHub Releases.
+#
+# Trigger: push tag mobile-v*  OR  workflow_dispatch with a version input.
+# Cut a release:
+#   git tag mobile-v1.0.0
+#   git push origin mobile-v1.0.0
+#
+# Asset name (website scorer expects Space-Bedrock / space-bedrock + .apk):
+#   Space-Bedrock-${VERSION}-android.apk
+#
+# make_latest is forced false so this release never steals /releases/latest
+# from the Electron desktop pipeline (.github/workflows/build.yml on v*).
+#
+# Optional GitHub Actions secrets (builds succeed without them):
+#   ANDROID_KEYSTORE_BASE64     — base64-encoded .jks / .keystore
+#   ANDROID_KEYSTORE_PASSWORD   — keystore password
+#   ANDROID_KEY_ALIAS           — key alias
+#   ANDROID_KEY_PASSWORD        — key password
+#   EXPO_TOKEN                  — only if switching to EAS cloud builds later
+#   IOS_DIST_CERT_BASE64 / IOS_* — reserved; iOS job skips when absent (no fake IPA)
+# GITHUB_TOKEN is provided automatically (contents: write).
+
+name: Mobile Release (Space Bedrock)
+
+on:
+  push:
+    tags:
+      - "mobile-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver without prefix (e.g. 1.0.0). Release tag will be mobile-v{version}."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-${{ github.event_name == 'workflow_dispatch' && format('mobile-v{0}', inputs.version) || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag / input
+        id: ver
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#mobile-v}"
+            VERSION="${VERSION#v}"
+            TAG="mobile-v${VERSION}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#mobile-v}"
+            VERSION="${VERSION#v}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "Version must look like 1.2.3 (got tag/input → ${VERSION})"
+            exit 1
+          fi
+          # versionCode: major*10000 + minor*100 + patch (ignores pre-release suffix)
+          CORE="${VERSION%%[-+]*}"
+          IFS=. read -r MAJOR MINOR PATCH <<< "$CORE"
+          VERSION_CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "Building Space Bedrock ${VERSION} (tag ${TAG}, versionCode ${VERSION_CODE})"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p "$ANDROID_HOME/licenses"
+          printf '%s\n' \
+            "24333f8a63b6825ea9c5514f83c2829b004d1fee" \
+            "d56f5187479451eabf01fb78af6dfcb131a6481e" \
+            "84831b9409646a918e30573bab4c9c91346d8abd" \
+            > "$ANDROID_HOME/licenses/android-sdk-license"
+          yes | sdkmanager --licenses >/dev/null || true
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Sync app version from tag
+        shell: bash
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          VERSION_CODE="${{ steps.ver.outputs.version_code }}"
+          node <<'NODE'
+          const fs = require("fs");
+          const version = process.env.VERSION;
+          const versionCode = Number(process.env.VERSION_CODE);
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          pkg.version = version;
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          const app = JSON.parse(fs.readFileSync("app.json", "utf8"));
+          app.expo = app.expo || {};
+          app.expo.version = version;
+          app.expo.android = app.expo.android || {};
+          app.expo.android.versionCode = versionCode;
+          app.expo.ios = app.expo.ios || {};
+          app.expo.ios.buildNumber = String(versionCode);
+          fs.writeFileSync("app.json", JSON.stringify(app, null, 2) + "\n");
+          console.log(`Synced expo.version=${version} android.versionCode=${versionCode}`);
+          NODE
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION_CODE: ${{ steps.ver.outputs.version_code }}
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --non-interactive --no-install
+
+      - name: Configure Android release signing (optional)
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANDROID_KEYSTORE_BASE64:-}" || -z "${ANDROID_KEYSTORE_PASSWORD:-}" || -z "${ANDROID_KEY_ALIAS:-}" || -z "${ANDROID_KEY_PASSWORD:-}" ]]; then
+            echo "::notice::No ANDROID_KEYSTORE_* secrets — Expo release uses the debug keystore (sideload / first ship). Add secrets before Play Store upload."
+            exit 0
+          fi
+          echo "Applying ANDROID_KEYSTORE_* secrets for release signing"
+          KEYSTORE_PATH="${GITHUB_WORKSPACE}/mobile/android/app/space-bedrock-release.keystore"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          printf '%s\n' \
+            "storePassword=${ANDROID_KEYSTORE_PASSWORD}" \
+            "keyPassword=${ANDROID_KEY_PASSWORD}" \
+            "keyAlias=${ANDROID_KEY_ALIAS}" \
+            "storeFile=space-bedrock-release.keystore" \
+            > android/keystore.properties
+          node <<'NODE'
+          const fs = require("fs");
+          const path = "android/app/build.gradle";
+          let text = fs.readFileSync(path, "utf8");
+          if (text.includes("keystorePropertiesFile")) {
+            console.log("build.gradle already has keystore wiring");
+            process.exit(0);
+          }
+          const propsLoader = `
+          def keystorePropertiesFile = rootProject.file("keystore.properties")
+          def keystoreProperties = new Properties()
+          if (keystorePropertiesFile.exists()) {
+              keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+          }
+          `;
+          if (!text.includes("android {")) {
+            throw new Error("android { block not found in app/build.gradle");
+          }
+          text = text.replace("android {", propsLoader + "\nandroid {");
+          const releaseBlock = `
+                  release {
+                      if (keystorePropertiesFile.exists()) {
+                          keyAlias keystoreProperties['keyAlias']
+                          keyPassword keystoreProperties['keyPassword']
+                          storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                          storePassword keystoreProperties['storePassword']
+                      }
+                  }`;
+          if (text.includes("signingConfigs {")) {
+            text = text.replace("signingConfigs {", `signingConfigs {${releaseBlock}`);
+          }
+          text = text.replace(
+            /release\s*\{([^}]*?)signingConfig\s+signingConfigs\.debug/s,
+            (m) => m.replace(
+              "signingConfig signingConfigs.debug",
+              "signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug"
+            )
+          );
+          fs.writeFileSync(path, text);
+          console.log("Patched android/app/build.gradle for release keystore");
+          NODE
+
+      - name: Assemble release APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Stage APK with stable name
+        id: apk
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          VERSION_CODE="${{ steps.ver.outputs.version_code }}"
+          TAG="${{ steps.ver.outputs.tag }}"
+          OUT="Space-Bedrock-${VERSION}-android.apk"
+          MANIFEST="android-update.json"
+          SRC=$(find mobile/android/app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+          if [[ -z "$SRC" ]]; then
+            echo "No APK found under mobile/android/app/build/outputs/apk"
+            find mobile/android/app/build/outputs -type f || true
+            exit 1
+          fi
+          cp "$SRC" "$OUT"
+          SHA256=$(sha256sum "$OUT" | awk '{print $1}')
+          export VERSION VERSION_CODE OUT TAG MANIFEST SHA256
+          node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+            const versionCode = Number(process.env.VERSION_CODE);
+            const out = process.env.OUT;
+            const tag = process.env.TAG;
+            const repo = process.env.GITHUB_REPOSITORY;
+            const sha256 = process.env.SHA256;
+            const body = {
+              "android-arm64": {
+                version,
+                versionCode,
+                apkUrl: `https://github.com/${repo}/releases/download/${tag}/${out}`,
+                sha256,
+              },
+            };
+            fs.writeFileSync(process.env.MANIFEST, JSON.stringify(body, null, 2) + "\n");
+            console.log(fs.readFileSync(process.env.MANIFEST, "utf8"));
+          '
+          ls -lah "$OUT" "$MANIFEST"
+          echo "path=${OUT}" >> "$GITHUB_OUTPUT"
+          echo "asset=${OUT}" >> "$GITHUB_OUTPUT"
+          echo "manifest=${MANIFEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release (APK)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Space Bedrock ${{ steps.ver.outputs.version }}
+          make_latest: false
+          generate_release_notes: true
+          body: |
+            ## Space Bedrock (mobile companion)
+
+            Android APK for the Space Bedrock Expo companion (`app.spaceclient.bedrock`).
+
+            - **Asset:** `Space-Bedrock-${{ steps.ver.outputs.version }}-android.apk`
+            - **Update manifest:** `android-update.json` (`android-arm64` block for in-app updater)
+            - Sideload on Android; Minecraft Bedrock must be installed separately.
+            - iOS IPA is not included in this release (signing secrets optional / not configured).
+
+            Desktop Electron installers ship on separate `v*` tags — see the latest Space Launcher release.
+
+            Mirror the manifest to `https://api.spaceclient.app/v1/mobile/android-update.json` for production clients.
+          files: |
+            ${{ steps.apk.outputs.path }}
+            android-update.json
+          fail_on_unmatched_files: true
+
+  ios-skip:
+    name: iOS (skipped without signing)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Note — no IPA without Apple signing secrets
+        env:
+          HAS_IOS: ${{ secrets.IOS_DIST_CERT_BASE64 != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          if [[ "${HAS_IOS}" == "true" ]]; then
+            echo "::notice::iOS signing secrets detected, but IPA packaging is not wired yet — add a macos-latest job when ready. No fake IPA uploaded."
+          else
+            echo "::notice::iOS build skipped — no IOS_DIST_CERT_BASE64 / APPLE_TEAM_ID secrets. Workflow succeeds without an IPA."
+          fi

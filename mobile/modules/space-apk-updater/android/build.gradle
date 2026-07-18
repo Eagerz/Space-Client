@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.spaceclient.apkupdater'
+version = '1.0.0'
+
+android {
+  namespace "app.spaceclient.apkupdater"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
