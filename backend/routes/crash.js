@@ -12,6 +12,9 @@ const { notifyDiscord } = require("../lib/discord-alerts");
 const crashCases = require("../lib/crash-cases");
 const playerDb = require("../lib/player-db");
 const { verifyProgressionJwt } = require("../lib/session-jwt");
+const diagnosticsStore = require("../lib/diagnostics-store");
+const { backupDiagnostic } = require("../lib/github-backup");
+const { onInboxAck } = require("../lib/fix-agent");
 
 function resolveInboxAuth(req) {
   const token =
@@ -69,6 +72,16 @@ function createCrashRouter() {
       // Ensure case exists even if Discord skipped (launcher can still poll).
       if (!crashCases.getCase(report.crashId)) {
         crashCases.createCase(report);
+      }
+
+      // Durable local diagnostic archive (Discord is not the only store).
+      try {
+        diagnosticsStore.saveDiagnostic(report);
+        backupDiagnostic(report.crashId).catch((err) =>
+          console.warn("[crash] github backup skipped:", err?.message || err)
+        );
+      } catch (err) {
+        console.warn("[crash] diagnostic save failed:", err?.message || err);
       }
 
       // Also mirror to status webhook if configured (works before bot is ready).
@@ -180,21 +193,34 @@ function createCrashRouter() {
    * POST /api/crash/inbox/ack
    * Body: { token, applied?, tipShown?, updateCheckDone? }
    */
-  router.post("/crash/inbox/ack", express.json({ limit: "32kb" }), (req, res) => {
+  router.post("/crash/inbox/ack", express.json({ limit: "32kb" }), async (req, res) => {
     const auth = resolveInboxAuth(req);
     if (!auth) {
       return res.status(401).json({ ok: false, error: "Invalid or expired inbox token" });
     }
     const body = req.body || {};
-    const player = playerDb.ackStaffInbox(auth.uuid, {
+    const ackOpts = {
       applied: body.applied || [],
       tipShown: Boolean(body.tipShown),
       updateCheckDone: Boolean(body.updateCheckDone),
-    });
+    };
+    const player = playerDb.ackStaffInbox(auth.uuid, ackOpts);
     if (!player) {
       return res.status(404).json({ ok: false, error: "Player not found" });
     }
-    return res.json({ ok: true, ...playerDb.getStaffInbox(auth.uuid) });
+
+    let completedJobs = [];
+    try {
+      completedJobs = await onInboxAck(auth.uuid, ackOpts);
+    } catch (err) {
+      console.warn("[crash] fix-job ack hook failed:", err?.message || err);
+    }
+
+    return res.json({
+      ok: true,
+      ...playerDb.getStaffInbox(auth.uuid),
+      completedFixJobs: completedJobs.map((j) => j.id),
+    });
   });
 
   router.get("/crash/health", (_req, res) => {

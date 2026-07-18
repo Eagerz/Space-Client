@@ -1,0 +1,12 @@
+{
+  "stable": {
+    "label": "Stable",
+    "manifestUrl": "https://download.spaceclient.com/updates/latest.json",
+    "note": "Default production channel"
+  },
+  "canary": {
+    "label": "Canary",
+    "manifestUrl": null,
+    "note": "Optional canary manifest — set URL when publishing a canary build"
+  }
+}

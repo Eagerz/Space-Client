@@ -6,9 +6,9 @@ const TITLES = {
   tickets: ["Tickets", "Open Discord support channels"],
   purchases: ["Purchases", "Stripe sessions & player entitlements"],
   players: ["Players", "Search by Minecraft name · push fixes by User ID"],
-  crashes: ["Crashes", "Staff channel crash feed"],
-  updates: ["Updates", "Force update + release info"],
-  agents: ["Agents & Todos", "Cursor agents + Discord todos board"],
+  crashes: ["Crashes", "Diagnostics archive + staff feed"],
+  updates: ["Updates", "Force update + CDN / GitHub backup"],
+  agents: ["Fix Agent", "Issue + Launcher ID → auto repair + Discord notify"],
   discord: ["Discord Ops", "Channels, roles, bot status"],
 };
 
@@ -570,6 +570,7 @@ async function renderUpdates() {
   loading();
   const d = await api("/updates");
   const m = d.mobile || {};
+  const channels = d.channels || {};
   const saved = (() => {
     try {
       return JSON.parse(sessionStorage.getItem("egrzSelectedLauncher") || "null");
@@ -578,10 +579,20 @@ async function renderUpdates() {
     }
   })();
 
+  const channelRows = Object.entries(channels)
+    .map(
+      ([id, ch]) => `<tr>
+        <td><strong>${esc(ch.label || id)}</strong></td>
+        <td class="mono">${esc(ch.manifestUrl || "—")}</td>
+        <td class="muted">${esc(ch.note || "")}</td>
+      </tr>`
+    )
+    .join("");
+
   stageHtml(`
     <div class="panel">
       <h3>Force update for a player</h3>
-      <p class="muted">Uses the Launcher ID selected in <strong>Launcher ID</strong>. Queues an update check on their next heartbeat.</p>
+      <p class="muted">Uses the Launcher ID selected in <strong>Launcher ID</strong>. Queues an update check on their next heartbeat (~45s) or next launch.</p>
       <p>${
         saved?.launcherId
           ? `<strong>Selected:</strong> <code class="mono">${esc(saved.launcherId)}</code> ${esc(saved.username || "")}`
@@ -592,6 +603,14 @@ async function renderUpdates() {
         <button type="button" class="btn" id="upd-goto-lid">Go to Launcher ID</button>
         <span class="muted" id="upd-force-status"></span>
       </div>
+    </div>
+    <div class="panel">
+      <h3>Update channels</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Channel</th><th>Manifest</th><th>Note</th></tr></thead>
+        <tbody>${channelRows || `<tr><td colspan="3" class="muted">No channels file</td></tr>`}</tbody>
+      </table></div>
+      <p class="muted" style="margin-top:0.5rem">Edit <code>backend/data/update-channels.json</code>. Live player fixes use Force update / Fix Agent — not GitHub alone.</p>
     </div>
     <div class="panel">
       <h3>Android / mobile</h3>
@@ -607,7 +626,9 @@ async function renderUpdates() {
     <div class="panel">
       <h3>Desktop releases</h3>
       <p>${esc(d.desktop?.note || "")}</p>
-      <p><a href="${esc(d.desktop?.releasesUrl || "#")}" target="_blank" rel="noreferrer">GitHub Releases</a></p>
+      <p>CDN manifest: <code class="mono">${esc(d.desktop?.manifestUrl || "")}</code></p>
+      <p>Publish helper: <code class="mono">${esc(d.desktop?.publishScript || "")}</code></p>
+      <p><a href="${esc(d.desktop?.releasesUrl || "#")}" target="_blank" rel="noreferrer">GitHub Releases (CI / backup)</a></p>
     </div>
     <div class="panel">
       <h3>Recent changelogs</h3>
@@ -646,9 +667,56 @@ async function renderUpdates() {
 async function renderCrashes() {
   loading();
   const d = await api("/crashes");
+  const diagRows = (d.diagnostics || [])
+    .map(
+      (x) => `<tr>
+        <td class="mono">${esc(x.crashId)}</td>
+        <td>${esc(x.username || "—")}</td>
+        <td class="mono">${esc((x.launcherId || "").slice(0, 12))}${x.launcherId ? "…" : ""}</td>
+        <td>${esc((x.diagnosis || x.summary || "—").slice(0, 80))}</td>
+        <td class="muted">${esc(x.updatedAt || x.createdAt || "")}</td>
+        <td>
+          <button type="button" class="btn btn-ghost crash-open" data-id="${esc(x.crashId)}">Open</button>
+          <button type="button" class="btn btn-primary crash-to-agent" data-id="${esc(x.crashId)}" data-lid="${esc(x.launcherId || "")}" data-user="${esc(x.username || "")}" data-diag="${esc(x.diagnosis || x.summary || "")}">Fix Agent</button>
+        </td>
+      </tr>`
+    )
+    .join("");
+
+  const caseRows = (d.cases || [])
+    .map(
+      (c) => `<tr>
+        <td class="mono">${esc(c.crashId)}</td>
+        <td><span class="badge">${esc(c.status || "")}</span></td>
+        <td>${esc(c.username || "—")}</td>
+        <td>${esc((c.diagnosis || "").slice(0, 60))}</td>
+        <td>
+          <button type="button" class="btn btn-primary case-to-agent" data-id="${esc(c.crashId)}" data-lid="${esc(c.launcherId || "")}" data-user="${esc(c.username || "")}" data-diag="${esc(c.diagnosis || c.summary || "")}">Fix Agent</button>
+        </td>
+      </tr>`
+    )
+    .join("");
+
   stageHtml(`
-    <p class="muted">Bot ${d.botReady ? "online" : "offline"} · staff channel ${esc(d.staffChannelId || "unset")}</p>
+    <p class="muted">Bot ${d.botReady ? "online" : "offline"} · staff channel ${esc(d.staffChannelId || "unset")} · GitHub backup ${d.githubBackupEnabled ? "on" : "off"}</p>
     <div class="panel">
+      <h3>Local diagnostics archive</h3>
+      <p class="muted">Stored under <code>backend/data/diagnostics/</code> — searchable for 1–2 player issues.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Crash ID</th><th>Player</th><th>Launcher ID</th><th>Diagnosis</th><th>When</th><th></th></tr></thead>
+        <tbody>${diagRows || `<tr><td colspan="6" class="muted">No diagnostics yet — crashes save here on report</td></tr>`}</tbody>
+      </table></div>
+      <div id="crash-detail" style="margin-top:1rem"></div>
+    </div>
+    <div class="panel">
+      <h3>Crash cases</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Status</th><th>Player</th><th>Diagnosis</th><th></th></tr></thead>
+        <tbody>${caseRows || `<tr><td colspan="5" class="muted">No cases</td></tr>`}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h3>Discord staff feed</h3>
       <ul class="list-plain">
         ${(d.messages || [])
           .map(
@@ -663,12 +731,164 @@ async function renderCrashes() {
       </ul>
     </div>
   `);
+
+  function sendToFixAgent(btn) {
+    const draft = {
+      launcherId: btn.dataset.lid || "",
+      username: btn.dataset.user || "",
+      crashId: btn.dataset.id || "",
+      issueText: [
+        btn.dataset.diag ? `Crash diagnosis: ${btn.dataset.diag}` : null,
+        btn.dataset.id ? `Crash ID: ${btn.dataset.id}` : null,
+        "Please apply safe launcher repairs and notify the player.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    };
+    sessionStorage.setItem("egrzFixAgentDraft", JSON.stringify(draft));
+    navigate("agents");
+  }
+
+  document.querySelectorAll(".crash-to-agent, .case-to-agent").forEach((btn) => {
+    btn.onclick = () => sendToFixAgent(btn);
+  });
+
+  document.querySelectorAll(".crash-open").forEach((btn) => {
+    btn.onclick = async () => {
+      const box = $("crash-detail");
+      box.innerHTML = `<p class="muted">Loading…</p>`;
+      try {
+        const detail = await api(`/crashes/${encodeURIComponent(btn.dataset.id)}`);
+        const diag = detail.diagnostic || {};
+        const meta = diag.detail || {};
+        box.innerHTML = `
+          <h4>Crash <code class="mono">${esc(diag.crashId || btn.dataset.id)}</code></h4>
+          <p>${esc(meta.diagnosis || diag.diagnosis || "—")}</p>
+          <p class="muted">${esc(meta.summary || "")}</p>
+          <pre class="mono" style="max-height:240px;overflow:auto;white-space:pre-wrap;font-size:0.75rem">${esc(diag.logsPreview || "(no logs)")}</pre>
+          <button type="button" class="btn btn-primary" id="detail-to-agent">Send to Fix Agent</button>
+          ${d.githubBackupEnabled ? `<button type="button" class="btn" id="detail-backup">Backup to GitHub</button>` : ""}
+          <span class="muted" id="detail-status"></span>
+        `;
+        $("detail-to-agent").onclick = () => {
+          sendToFixAgent({
+            dataset: {
+              lid: diag.launcherId || meta.launcherId || "",
+              user: meta.username || diag.username || "",
+              id: diag.crashId || btn.dataset.id,
+              diag: meta.diagnosis || diag.diagnosis || "",
+            },
+          });
+        };
+        const backupBtn = $("detail-backup");
+        if (backupBtn) {
+          backupBtn.onclick = async () => {
+            $("detail-status").textContent = "Backing up…";
+            try {
+              const r = await api(`/crashes/${encodeURIComponent(btn.dataset.id)}/backup`, {
+                method: "POST",
+                body: "{}",
+              });
+              $("detail-status").textContent = r.ok ? `Backed up: ${r.url || "ok"}` : r.error || r.skipped || "Failed";
+            } catch (e) {
+              $("detail-status").textContent = e.message || "Failed";
+            }
+          };
+        }
+      } catch (e) {
+        box.innerHTML = `<div class="error-banner">${esc(e.message)}</div>`;
+      }
+    };
+  });
+}
+
+function statusBadge(status) {
+  const s = String(status || "");
+  const cls =
+    s === "applied" ? "ok" : s === "needs_staff" || s === "failed" ? "bad" : s === "queued" ? "" : "";
+  return `<span class="badge ${cls}">${esc(s)}</span>`;
 }
 
 async function renderAgents() {
   loading();
-  const [agents, todos] = await Promise.all([api("/agents"), api("/todos")]);
+  const draft = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("egrzFixAgentDraft") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  const saved = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("egrzSelectedLauncher") || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  const [agents, todos, jobsRes] = await Promise.all([
+    api("/agents"),
+    api("/todos"),
+    api("/fix-jobs?limit=40"),
+  ]);
+
+  const defaultLid = draft?.launcherId || saved?.launcherId || "";
+  const defaultUser = draft?.username || saved?.username || "";
+  const defaultIssue = draft?.issueText || "";
+  const defaultCrash = draft?.crashId || "";
+  const last = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("egrzFixAgentLast") || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  const jobRows = (jobsRes.jobs || [])
+    .map(
+      (j) => `<tr>
+        <td class="mono">${esc(j.id)}</td>
+        <td>${statusBadge(j.status)}</td>
+        <td>${esc(j.username || "—")}<div class="mono muted">${esc((j.launcherId || "").slice(0, 12))}…</div></td>
+        <td>${esc((j.diagnosis || j.issueText || "").slice(0, 70))}</td>
+        <td class="mono">${esc((j.proposedActions || []).join(", ") || "—")}</td>
+        <td class="muted">${esc(j.updatedAt || "")}</td>
+        <td>${
+          j.status === "needs_staff"
+            ? `<button type="button" class="btn btn-primary job-queue" data-id="${esc(j.id)}">Queue anyway</button>`
+            : ""
+        }</td>
+      </tr>`
+    )
+    .join("");
+
   stageHtml(`
+    <div class="panel">
+      <h3>Space Cloud Fix Agent</h3>
+      <p class="muted">Describe the player's issue. The agent maps it to allow-listed repairs, queues them on their launcher (~45s heartbeat), then DMs / tickets when applied. The cloud cannot start a closed app — they need the launcher open or next launch.</p>
+      <label>Launcher ID or Minecraft / Discord name</label>
+      <input type="text" id="fix-q" placeholder="UUID, username, or Discord name" value="${esc(defaultLid || defaultUser)}" />
+      <label style="margin-top:0.75rem;display:block">Issue</label>
+      <textarea id="fix-issue" rows="5" placeholder="Game crashes on join with mixin error…">${esc(defaultIssue)}</textarea>
+      <label style="margin-top:0.75rem;display:block">Ticket channel ID (optional)</label>
+      <input type="text" id="fix-ticket" placeholder="Discord ticket channel snowflake" />
+      <div class="field-row" style="margin-top:0.75rem;gap:1rem;flex-wrap:wrap">
+        <label><input type="checkbox" id="fix-notify" checked /> Notify Discord</label>
+        <label><input type="checkbox" id="fix-confirm" /> Require confirm before queue</label>
+      </div>
+      <div class="field-row" style="margin-top:0.75rem">
+        <button type="button" class="btn btn-primary" id="fix-run">Run Fix Agent</button>
+        <span class="muted" id="fix-status">${last?.status ? esc(`Last: ${last.status}`) : ""}</span>
+      </div>
+      <p class="muted" id="fix-result">${esc(last?.text || "")}</p>
+    </div>
+    <div class="panel">
+      <h3>Fix jobs</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Job</th><th>Status</th><th>Player</th><th>Issue</th><th>Actions</th><th>Updated</th><th></th></tr></thead>
+        <tbody>${jobRows || `<tr><td colspan="7" class="muted">No jobs yet</td></tr>`}</tbody>
+      </table></div>
+    </div>
     <div class="panel">
       <h3>Post a todo</h3>
       <textarea id="todo-text" placeholder="Ship Egrz overview polish…"></textarea>
@@ -693,7 +913,7 @@ async function renderAgents() {
       </ul>
     </div>
     <div class="panel">
-      <h3>Cursor agents</h3>
+      <h3>Agent catalog</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>Agent</th><th>Area</th><th>Status</th></tr></thead>
         <tbody>
@@ -710,6 +930,69 @@ async function renderAgents() {
       </table></div>
     </div>
   `);
+
+  if (draft) {
+    sessionStorage.removeItem("egrzFixAgentDraft");
+  }
+
+  $("fix-run").onclick = async () => {
+    const q = $("fix-q").value.trim();
+    const issueText = $("fix-issue").value.trim();
+    if (!q || !issueText) {
+      $("fix-status").textContent = "Launcher ID / name and issue required";
+      return;
+    }
+    $("fix-status").textContent = "Analyzing…";
+    $("fix-result").textContent = "";
+    try {
+      const looksUuid = /^[0-9a-f-]{32,36}$/i.test(q);
+      const body = {
+        issueText,
+        notifyDiscord: $("fix-notify").checked,
+        requireConfirm: $("fix-confirm").checked,
+        ticketChannelId: $("fix-ticket").value.trim() || undefined,
+        crashId: defaultCrash || undefined,
+      };
+      if (looksUuid) body.launcherId = q;
+      else body.q = q;
+      if (defaultUser && looksUuid) body.username = defaultUser;
+
+      const d = await api("/fix-jobs", { method: "POST", body: JSON.stringify(body) });
+      const job = d.job || {};
+      sessionStorage.setItem(
+        "egrzFixAgentLast",
+        JSON.stringify({
+          status: job.status,
+          text: [
+            job.diagnosis ? `Diagnosis: ${job.diagnosis}` : null,
+            job.proposedActions?.length ? `Actions: ${job.proposedActions.join(", ")}` : null,
+            job.result?.message || job.result?.reason || null,
+            `Job ${job.id}`,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        })
+      );
+      await renderAgents();
+    } catch (err) {
+      $("fix-status").textContent = err.message || "Failed";
+    }
+  };
+
+  document.querySelectorAll(".job-queue").forEach((btn) => {
+    btn.onclick = async () => {
+      try {
+        await api(`/fix-jobs/${encodeURIComponent(btn.dataset.id)}/queue`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        await renderAgents();
+      } catch (e) {
+        alert(e.message || "Queue failed");
+      }
+    };
+  });
+
   $("todo-post").onclick = async () => {
     const text = $("todo-text").value.trim();
     if (!text) return;

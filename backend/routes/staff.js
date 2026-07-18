@@ -28,6 +28,12 @@ const {
 const { getClient, isReady, botEnabled } = require("../lib/discord-bot/client");
 const { setEgrzActivity, clearEgrzActivity, getRpcStatus } = require("../lib/egrz-rpc");
 const { lookupLauncherId } = require("../lib/launcher-lookup");
+const fixJobs = require("../lib/fix-jobs");
+const fixAgent = require("../lib/fix-agent");
+const diagnosticsStore = require("../lib/diagnostics-store");
+const { backupDiagnostic, backupEnabled } = require("../lib/github-backup");
+const fs = require("fs");
+const path = require("path");
 
 const STATE_COOKIE = "egrz_oauth_state";
 
@@ -358,8 +364,8 @@ function createStaffRouter(stripe) {
     }
   });
 
-  // ── Crashes ─────────────────────────────────────────────────────
-  router.get("/crashes", async (_req, res) => {
+  // ── Crashes + durable diagnostics ───────────────────────────────
+  router.get("/crashes", async (req, res) => {
     try {
       const channelId = envId("DISCORD_STAFF_CHANNEL_ID");
       const gid = envId("DISCORD_GUILD_ID");
@@ -383,15 +389,67 @@ function createStaffRouter(stripe) {
           }
         }
       }
+
+      const q = String(req.query.q || "");
+      const launcherId = String(req.query.launcherId || "");
+      const diagnostics = diagnosticsStore.listDiagnostics({
+        q,
+        launcherId: launcherId || undefined,
+        limit: Number(req.query.limit || 40),
+      });
+      const cases = crashCases.listCases().slice(0, 40).map((c) => ({
+        crashId: c.crashId,
+        status: c.status,
+        diagnosis: c.diagnosis,
+        summary: c.summary,
+        launcherId: c.player?.minecraftUuid || null,
+        username: c.player?.minecraftUsername || null,
+        updatedAt: c.updatedAt ? new Date(c.updatedAt).toISOString() : null,
+      }));
+
       res.json({
         staffChannelId: channelId || null,
         botReady: isReady(),
         messages,
+        diagnostics,
+        cases,
+        githubBackupEnabled: backupEnabled(),
       });
     } catch (err) {
       res.status(500).json({ error: err?.message || "crashes failed" });
     }
   });
+
+  router.get("/crashes/:crashId", (req, res) => {
+    const crashId = String(req.params.crashId || "").trim();
+    const diagnostic = diagnosticsStore.getDiagnostic(crashId);
+    const crashCase = crashCases.getCase(crashId);
+    if (!diagnostic && !crashCase) {
+      return res.status(404).json({ error: "Crash / diagnostic not found" });
+    }
+    res.json({
+      ok: true,
+      diagnostic,
+      case: crashCase,
+    });
+  });
+
+  router.post(
+    "/crashes/:crashId/backup",
+    requireAuth("ops"),
+    async (req, res) => {
+      try {
+        const result = await backupDiagnostic(req.params.crashId);
+        if (!result.ok && result.skipped) {
+          return res.status(400).json(result);
+        }
+        if (!result.ok) return res.status(502).json(result);
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err?.message || "backup failed" });
+      }
+    }
+  );
 
   // ── Todos ───────────────────────────────────────────────────────
   router.get("/todos", async (_req, res) => {
@@ -477,20 +535,138 @@ function createStaffRouter(stripe) {
         /* ignore */
       }
     }
+
+    let channels = {
+      stable: {
+        label: "Stable",
+        manifestUrl: "https://download.spaceclient.com/updates/latest.json",
+        note: "Default production channel",
+      },
+      canary: {
+        label: "Canary",
+        manifestUrl: null,
+        note: "Optional canary manifest — set URL in backend/data/update-channels.json",
+      },
+    };
+    try {
+      const channelsPath = path.join(__dirname, "..", "data", "update-channels.json");
+      if (fs.existsSync(channelsPath)) {
+        channels = JSON.parse(fs.readFileSync(channelsPath, "utf8"));
+      }
+    } catch {
+      /* keep defaults */
+    }
+
     res.json({
       mobile,
       desktop: {
-        note: "Desktop updates ship via GitHub Releases + electron-updater (auto-updater.js)",
+        note:
+          "Desktop binaries: CDN manifest (download.spaceclient.com) + GitHub Releases as CI/backup. Per-player force update uses staff inbox.",
+        manifestUrl: "https://download.spaceclient.com/updates/latest.json",
         releasesUrl: "https://github.com/Eagerz/space-client/releases",
+        publishScript: "scripts/publish-app-update.js",
       },
+      channels,
       changelogRecent,
     });
   });
 
-  // ── Agents board (static catalog) ───────────────────────────────
+  // ── Fix Agent jobs (Space Cloud) ────────────────────────────────
+  router.get("/fix-jobs", (req, res) => {
+    const jobs = fixJobs.listJobs({
+      status: req.query.status || undefined,
+      launcherId: req.query.launcherId || undefined,
+      limit: Number(req.query.limit || 50),
+    });
+    res.json({ jobs });
+  });
+
+  router.get("/fix-jobs/:id", (req, res) => {
+    const job = fixJobs.getJob(req.params.id);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json({ job });
+  });
+
+  router.post("/fix-jobs", requireAuth("ops"), express.json({ limit: "64kb" }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      let launcherId = playerDb.normalizeUuid(body.launcherId || body.uuid || "");
+      let username = body.username || null;
+      let discordId = body.discordId || null;
+      let discordUsername = body.discordUsername || null;
+
+      if ((!launcherId || launcherId.length < 32) && body.q) {
+        const looked = await lookupLauncherId(String(body.q));
+        const match = looked?.matches?.[0];
+        if (match?.launcherId) {
+          launcherId = playerDb.normalizeUuid(match.launcherId);
+          username = username || match.username || null;
+          discordId = discordId || match.discordId || null;
+          discordUsername = discordUsername || match.discordUsername || null;
+        }
+      }
+
+      const createdBy =
+        req.egrz?.globalName || req.egrz?.username || req.egrz?.sub || "staff";
+
+      const job = await fixAgent.runFixJob({
+        launcherId,
+        username,
+        discordId,
+        discordUsername,
+        issueText: body.issueText,
+        logs: body.logs || null,
+        crashId: body.crashId || null,
+        ticketChannelId: body.ticketChannelId || null,
+        notifyDiscord: body.notifyDiscord !== false,
+        requireConfirm: Boolean(body.requireConfirm),
+        createdBy: String(createdBy),
+      });
+
+      res.json({ ok: true, job });
+    } catch (err) {
+      const status = err?.status || 500;
+      res.status(status).json({ error: err?.message || "Fix job failed" });
+    }
+  });
+
+  router.post(
+    "/fix-jobs/:id/queue",
+    requireAuth("ops"),
+    express.json({ limit: "32kb" }),
+    async (req, res) => {
+      try {
+        const existing = fixJobs.getJob(req.params.id);
+        if (!existing) return res.status(404).json({ error: "Job not found" });
+        const body = req.body || {};
+        const queuedBy =
+          req.egrz?.globalName || req.egrz?.username || req.egrz?.sub || "staff";
+        const job = fixAgent.queueJobActions(req.params.id, {
+          actions: body.actions,
+          tip: body.tip,
+          forceUpdateCheck: body.forceUpdateCheck,
+          queuedBy: String(queuedBy),
+          notifyQueued: body.notifyDiscord !== false,
+        });
+        res.json({ ok: true, job });
+      } catch (err) {
+        res.status(500).json({ error: err?.message || "Queue failed" });
+      }
+    }
+  );
+
+  // ── Agents board (catalog + fix agent pointer) ──────────────────
   router.get("/agents", (_req, res) => {
     res.json({
+      fixAgent: {
+        id: "space-cloud-fix",
+        name: "Space Cloud Fix Agent",
+        status: "active",
+        endpoint: "POST /api/staff/fix-jobs",
+        note: "Type issue + launcher ID in Egrz Agents — queues allow-listed repairs.",
+      },
       agents: [
+        { id: "space-cloud-fix", name: "Space Cloud Fix Agent", area: "backend/lib/fix-agent.js", status: "active" },
         { id: "discord-bot", name: "Discord Bot", area: "backend/lib/discord-bot", status: "active" },
         { id: "electron-auto-updater", name: "Electron Auto Updater", area: "auto-updater.js", status: "active" },
         { id: "electron-release-ci", name: "Electron Release CI", area: ".github/workflows", status: "active" },
