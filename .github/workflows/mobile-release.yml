@@ -107,6 +107,22 @@ jobs:
             > "$ANDROID_HOME/licenses/android-sdk-license"
           yes | sdkmanager --licenses >/dev/null || true
 
+      - name: Install Android SDK platforms / NDK
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.1.12297006" \
+            "cmake;3.22.1" || \
+          sdkmanager --install \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "ndk;26.1.10909125"
+          sdkmanager --list_installed | head -n 40
+
       - name: Install npm dependencies
         run: npm ci
 
@@ -205,9 +221,28 @@ jobs:
 
       - name: Assemble release APK
         working-directory: mobile/android
+        timeout-minutes: 50
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          # Write CI gradle props for memory + no daemon hangs
+          cat >> gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          org.gradle.caching=true
+          android.useAndroidX=true
+          EOF
+          ./gradlew app:assembleRelease --no-daemon --stacktrace --console=plain 2>&1 | tee ../gradle-assemble.log
+
+      - name: Upload gradle log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-assemble-log
+          path: mobile/gradle-assemble.log
+          if-no-files-found: ignore
 
       - name: Stage APK with stable name
         id: apk
