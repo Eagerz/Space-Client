@@ -1,9 +1,11 @@
-const INSTALLED_KEY = "space-client-installed-mods";
 const ACCENT_KEY = "space-client-accent";
 const BLUR_BG_KEY = "space-client-blur-bg";
+const BG_THEME_KEY = "space-client-bg-theme";
 const CLEAR_PANELS_KEY = "space-client-clear-panels";
 const RAM_KEY = "space-client-ram";
 const IN_GAME_KEY = "space-client-in-game";
+const PERF_PACK_KEY = "space-launcher-perf-pack";
+const SELECTED_INSTANCE_KEY = "space-client-selected-instance";
 const MODRINTH_PAGE_SIZE = 20;
 
 const ACCENT_COLORS = [
@@ -25,28 +27,127 @@ const ACCENT_COLORS = [
   { id: "cyan", value: "#06B6D4", label: "Cyan" },
 ];
 
+/** Full Java catalog (year-based 26.x + classic 1.x). */
 const MINECRAFT_VERSIONS = [
-  "1.18", "1.18.1", "1.18.2",
-  "1.19", "1.19.1", "1.19.2", "1.19.3", "1.19.4",
-  "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6",
-  "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4",
-  "1.22", "1.22.1", "1.22.2",
-  "1.23", "1.23.1",
-  "1.24", "1.24.1",
-  "1.25", "1.25.1",
-  "1.26", "1.26.1", "1.26.2",
+  "26.3-snapshot-4",
+  "26.2",
+  "26.1.2",
+  "26.1.1",
+  "26.1",
+  "1.21.11",
+  "1.21.10",
+  "1.21.9",
+  "1.21.8",
+  "1.21.7",
+  "1.21.6",
+  "1.21.5",
+  "1.21.4",
+  "1.21.3",
+  "1.21.2",
+  "1.21.1",
+  "1.21",
+  "1.20.6",
+  "1.20.5",
+  "1.20.4",
+  "1.20.3",
+  "1.20.2",
+  "1.20.1",
+  "1.20",
+  "1.19.4",
+  "1.19.3",
+  "1.19.2",
+  "1.19.1",
+  "1.19",
+  "1.18.2",
+  "1.18.1",
+  "1.18",
+  "1.8.9",
+];
+
+/** Named engines for labels / legacy detection (not the full dropdown list). */
+const JAVA_TARGET_POOL = [
+  { value: "1.8.9", label: "1.8.9 — Old-School", legacy: true },
+  { value: "26.2", label: "26.2 — Modern Stable", legacy: false },
+  { value: "1.26.2", label: "26.2 — Modern Stable", legacy: false },
+  { value: "26.3-snapshot-4", label: "26.3-snapshot-4 — Cutting-Edge", legacy: false },
+  { value: "1.28", label: "26.3-snapshot-4 — Cutting-Edge", legacy: false },
+];
+
+const JAVA_TARGET_IDS = JAVA_TARGET_POOL.map((entry) => entry.value);
+
+const DEFAULT_FABRIC_MC = "26.2";
+const DEFAULT_JAVA_TARGET = "26.2";
+
+const BEDROCK_PREVIEW_KEY = "space-launcher-bedrock-preview";
+const HOME_EDITION_KEY = "space-launcher-home-edition";
+
+/** Populated from main process (mod-injection FABRIC_API_BY_MC keys). */
+let fabricSupportedVersions = [
+  "26.3-snapshot-4",
+  "26.2",
+  "26.1.2",
+  "26.1.1",
+  "26.1",
+  "1.21.11",
+  "1.21.10",
+  "1.21.9",
+  "1.21.8",
+  "1.21.7",
+  "1.21.6",
+  "1.21.5",
+  "1.21.4",
+  "1.21.3",
+  "1.21.2",
+  "1.21.1",
+  "1.21",
 ];
 
 const modrinthState = {
   query: "",
   loader: "fabric",
   homeLoader: "fabric",
-  version: "1.21.1",
+  version: DEFAULT_JAVA_TARGET,
+  bedrockPreview: false,
+  edition: "java",
   index: "downloads",
   offset: 0,
   totalHits: 0,
   loading: false,
   loaded: false,
+};
+
+const modpackState = {
+  query: "",
+  loader: "fabric",
+  index: "downloads",
+  offset: 0,
+  totalHits: 0,
+  loading: false,
+  loaded: false,
+};
+
+const resourcePackState = {
+  query: "",
+  index: "downloads",
+  offset: 0,
+  totalHits: 0,
+  loading: false,
+  loaded: false,
+};
+
+const shaderState = {
+  query: "",
+  index: "downloads",
+  offset: 0,
+  totalHits: 0,
+  loading: false,
+  loaded: false,
+};
+
+const instanceState = {
+  items: [],
+  selectedId: null,
+  loading: false,
 };
 
 let modDetailOpen = false;
@@ -83,197 +184,348 @@ function syncInstallUI(projectId, installed) {
   });
 }
 
+const MOD_CARD_DEFAULT_COLORS = {
+  c1: "255, 255, 255",
+  c2: "148, 163, 184",
+  c3: "226, 232, 240",
+};
+
+function clampChannel(n) {
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+
+function rgbKey(rgb) {
+  return rgb.join(", ");
+}
+
+function mixRgb(a, b, t) {
+  return [
+    clampChannel(a[0] + (b[0] - a[0]) * t),
+    clampChannel(a[1] + (b[1] - a[1]) * t),
+    clampChannel(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+function colorDistance(a, b) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+function normalizeLogoColors(rawColors) {
+  if (!rawColors.length) return { ...MOD_CARD_DEFAULT_COLORS };
+
+  const sorted = [...rawColors].sort((a, b) => {
+    const lumA = 0.299 * a[0] + 0.587 * a[1] + 0.114 * a[2];
+    const lumB = 0.299 * b[0] + 0.587 * b[1] + 0.114 * b[2];
+    return lumB - lumA;
+  });
+
+  let c1 = sorted[0];
+  let c2 = sorted.find((c) => colorDistance(c, c1) > 36) || sorted[1];
+  let c3 = sorted.find((c) => colorDistance(c, c1) > 36 && colorDistance(c, c2) > 28) || sorted[2];
+
+  if (!c2) c2 = mixRgb(c1, [255, 255, 255], 0.35);
+  if (!c3) c3 = mixRgb(c2, [255, 255, 255], 0.55);
+
+  return {
+    c1: rgbKey(c1),
+    c2: rgbKey(c2),
+    c3: rgbKey(c3),
+  };
+}
+
+function waitForImage(img) {
+  if (img.complete && img.naturalWidth) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      img.removeEventListener("load", done);
+      img.removeEventListener("error", onErr);
+      resolve();
+    };
+    const onErr = () => {
+      img.removeEventListener("load", done);
+      img.removeEventListener("error", onErr);
+      reject(new Error("icon load failed"));
+    };
+    img.addEventListener("load", done);
+    img.addEventListener("error", onErr);
+  });
+}
+
+function sampleLogoColors(img, crop) {
+  const canvas = document.createElement("canvas");
+  const size = 32;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+
+  if (crop?.w && crop?.h) {
+    ctx.drawImage(img, crop.x || 0, crop.y || 0, crop.w, crop.h, 0, 0, size, size);
+  } else {
+    ctx.drawImage(img, 0, 0, size, size);
+  }
+  const { data } = ctx.getImageData(0, 0, size, size);
+  const buckets = new Map();
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha < 120) continue;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (lum < 22) continue;
+
+    const qr = Math.round(r / 24) * 24;
+    const qg = Math.round(g / 24) * 24;
+    const qb = Math.round(b / 24) * 24;
+    const key = `${qr},${qg},${qb}`;
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+
+  const ranked = [...buckets.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([key]) => key.split(",").map(Number));
+
+  return normalizeLogoColors(ranked);
+}
+
+async function applyModCardLogoColors(card) {
+  if (!card || card.dataset.colorsReady === "1") return;
+
+  const img = card.querySelector("img.modrinth-icon");
+  if (!img?.src) {
+    card.style.setProperty("--card-c1", MOD_CARD_DEFAULT_COLORS.c1);
+    card.style.setProperty("--card-c2", MOD_CARD_DEFAULT_COLORS.c2);
+    card.style.setProperty("--card-c3", MOD_CARD_DEFAULT_COLORS.c3);
+    card.classList.add("has-logo-colors");
+    card.dataset.colorsReady = "1";
+    return;
+  }
+
+  const src = img.currentSrc || img.src;
+  const probe = new Image();
+  probe.crossOrigin = "anonymous";
+  probe.referrerPolicy = "no-referrer";
+
+  try {
+    await new Promise((resolve, reject) => {
+      probe.onload = resolve;
+      probe.onerror = reject;
+      probe.src = src;
+    });
+    const colors = sampleLogoColors(probe);
+    if (colors) {
+      card.style.setProperty("--card-c1", colors.c1);
+      card.style.setProperty("--card-c2", colors.c2);
+      card.style.setProperty("--card-c3", colors.c3);
+      card.classList.add("has-logo-colors");
+    }
+  } catch {
+    card.style.setProperty("--card-c1", MOD_CARD_DEFAULT_COLORS.c1);
+    card.style.setProperty("--card-c2", MOD_CARD_DEFAULT_COLORS.c2);
+    card.style.setProperty("--card-c3", MOD_CARD_DEFAULT_COLORS.c3);
+    card.classList.add("has-logo-colors");
+  }
+
+  card.dataset.colorsReady = "1";
+}
+
+function initModrinthCardColors(root = document) {
+  const cards = root.querySelectorAll?.(".modrinth-card") || [];
+  cards.forEach((card) => {
+    void applyModCardLogoColors(card);
+  });
+}
+
+function setCosmeticCardColors(card, colors = MOD_CARD_DEFAULT_COLORS) {
+  card.style.setProperty("--card-c1", colors.c1);
+  card.style.setProperty("--card-c2", colors.c2);
+  card.style.setProperty("--card-c3", colors.c3);
+  card.classList.add("has-logo-colors");
+  card.dataset.colorsReady = "1";
+}
+
+async function applyCosmeticCardLogoColors(card) {
+  if (!card || card.dataset.colorsReady === "1") return;
+
+  const sheetImg = card.querySelector(".cape-live-sheet");
+  const previewImg = card.querySelector(".cosmetic-preview-img");
+  const sourceImg = sheetImg || previewImg;
+
+  if (!sourceImg?.src) {
+    setCosmeticCardColors(card);
+    return;
+  }
+
+  const src = sourceImg.currentSrc || sourceImg.src;
+  const probe = new Image();
+  probe.crossOrigin = "anonymous";
+  probe.referrerPolicy = "no-referrer";
+
+  try {
+    await new Promise((resolve, reject) => {
+      probe.onload = resolve;
+      probe.onerror = reject;
+      probe.src = src;
+    });
+
+    const frames = Number(sheetImg?.dataset.frameCount) || 24;
+    const crop = sheetImg && probe.naturalHeight > 0
+      ? {
+          x: 0,
+          y: 0,
+          w: probe.naturalWidth,
+          h: probe.naturalHeight / frames,
+        }
+      : null;
+    const colors = sampleLogoColors(probe, crop);
+    if (colors) {
+      setCosmeticCardColors(card, colors);
+      return;
+    }
+  } catch {
+    // fall through to defaults
+  }
+
+  setCosmeticCardColors(card);
+}
+
+function initCosmeticCardColors(root = document) {
+  const cards = root.querySelectorAll?.(".cosmetic-card") || [];
+  cards.forEach((card) => {
+    void applyCosmeticCardLogoColors(card);
+  });
+}
+
 const HOME_NEWS = [
   {
-    id: "release-v1",
+    id: "java-bedrock",
     tag: "Release",
-    date: "Jul 10, 2026",
-    title: "Space Client v1.0 released",
-    desc: "The first public build is live — launch Minecraft with Fabric, browse Modrinth, and manage cosmetics from one place.",
+    date: "2026-07-17",
+    dateLabel: "Jul 17, 2026",
+    title: "Java + Bedrock in one launcher",
+    desc: "Apex Launcher now launches both editions on Windows. Host or join cross-play worlds with Space Bridge — no router setup.",
   },
   {
-    id: "mc-1211",
+    id: "stardust",
+    tag: "Feature",
+    date: "2026-07-17",
+    dateLabel: "Jul 17, 2026",
+    title: "Stardust & Cosmic Shop live",
+    desc: "Earn Stardust while you play (anti-AFK tracked). 5 Stardust = 1 Credit — spend Credits in the Cosmic Shop. Events and quests coming soon.",
+  },
+  {
+    id: "home-trailers",
     tag: "Update",
-    date: "Jul 8, 2026",
-    title: "Minecraft 1.21.1 now supported",
-    desc: "Play on the latest stable release with Fabric loader. More versions are on the way.",
+    date: "2026-07-16",
+    dateLabel: "Jul 16, 2026",
+    title: "Home stage trailer reel",
+    desc: "Official Minecraft update trailers play full-bleed behind Home — Village & Pillage through Tricky Trials.",
+  },
+  {
+    id: "space-bridge",
+    tag: "Feature",
+    date: "2026-07-15",
+    dateLabel: "Jul 15, 2026",
+    title: "Space Bridge cross-play",
+    desc: "Open a Java LAN world, share a code, and let Bedrock friends join — or join as Bedrock/Java from Host.",
   },
   {
     id: "modrinth",
     tag: "Feature",
-    date: "Jul 5, 2026",
-    title: "Modrinth integration added",
-    desc: "Search, install, and manage mods without leaving the launcher.",
+    date: "2026-07-05",
+    dateLabel: "Jul 5, 2026",
+    title: "Modrinth built into the launcher",
+    desc: "Search, install, and manage mods without leaving Apex Launcher.",
   },
 ];
 
+function renderHomeNews() {
+  const [featured, ...rest] = HOME_NEWS;
+  if (!featured) return "";
+
+  const feed = rest
+    .map(
+      (item) => `
+      <li class="home-news-item" data-news="${escapeHtml(item.id)}">
+        <time class="home-news-item-date" datetime="${escapeHtml(item.date)}">${escapeHtml(item.dateLabel)}</time>
+        <div class="home-news-item-copy">
+          <p class="home-news-item-title">${escapeHtml(item.title)}</p>
+          <p class="home-news-item-desc">${escapeHtml(item.desc)}</p>
+        </div>
+      </li>`
+    )
+    .join("");
+
+  return `
+    <article class="home-news-feature" data-news="${escapeHtml(featured.id)}">
+      <div class="home-news-feature-meta">
+        <span class="home-news-feature-tag">${escapeHtml(featured.tag)}</span>
+        <time datetime="${escapeHtml(featured.date)}">${escapeHtml(featured.dateLabel)}</time>
+      </div>
+      <h3 class="home-news-feature-title">${escapeHtml(featured.title)}</h3>
+      <p class="home-news-feature-desc">${escapeHtml(featured.desc)}</p>
+    </article>
+    ${
+      rest.length
+        ? `<ul class="home-news-feed" aria-label="Recent updates">${feed}</ul>`
+        : ""
+    }
+  `;
+}
+
+function initHomeNews() {
+  const list = document.getElementById("home-news-list");
+  if (!list) return;
+  list.innerHTML = renderHomeNews();
+}
+
 const COSMETICS = [
   {
-    id: "event-horizon",
+    id: "jeweled-crown",
     category: "capes",
-    name: "Event Horizon",
-    desc: "A matte-black singularity with silver–violet light lazily lensing around its edge.",
+    name: "Jeweled Crown",
+    desc: "Tournament champion cape — a centered jeweled gold crown on deep night cloth. Awarded to upcoming tournament winners.",
     rarity: "legendary",
-    tags: ["Animated", "Legendary", "Exclusive"],
-    price: 850,
-    previewImage: "assets/capes/event-horizon-preview.png",
-    sheetImage: "assets/capes/event-horizon-sheet.png",
-    textureImage: "assets/capes/event-horizon-texture.png",
-    frameCount: 24,
+    tags: ["Animated", "Tournament", "Champion"],
+    price: 900,
+    tournament: true,
+    previewImage: "assets/capes/jeweled-crown-preview.png",
+    sheetImage: "assets/capes/jeweled-crown-sheet.png",
+    textureImage: "assets/capes/jeweled-crown-texture.png",
+    frameCount: 32,
     equipped: false,
   },
   {
-    id: "hyperspace",
+    id: "shining-trophy",
     category: "capes",
-    name: "Hyperspace",
-    desc: "Vertical star streaks whip past as if you are forever jumping to warp.",
-    rarity: "epic",
-    tags: ["Animated", "Motion"],
-    price: 550,
-    previewImage: "assets/capes/hyperspace-preview.png",
-    sheetImage: "assets/capes/hyperspace-sheet.png",
-    textureImage: "assets/capes/hyperspace-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "starfall",
-    category: "capes",
-    name: "Starfall",
-    desc: "Quiet charcoal stars, then a sharp white comet cuts across and dissolves.",
-    rarity: "rare",
-    tags: ["Animated", "Rare"],
-    price: 400,
-    previewImage: "assets/capes/starfall-preview.png",
-    sheetImage: "assets/capes/starfall-sheet.png",
-    textureImage: "assets/capes/starfall-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "solar-eclipse",
-    category: "capes",
-    name: "Solar Eclipse",
-    desc: "A black lunar disc crowned by a flickering white corona and soft flare wisps.",
-    rarity: "epic",
-    tags: ["Animated", "Solar"],
-    price: 600,
-    previewImage: "assets/capes/solar-eclipse-preview.png",
-    sheetImage: "assets/capes/solar-eclipse-sheet.png",
-    textureImage: "assets/capes/solar-eclipse-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "liquid-nebula",
-    category: "capes",
-    name: "Liquid Nebula",
-    desc: "Obsidian canvas with indigo dust clouds drifting like silk lava.",
-    rarity: "epic",
-    tags: ["Animated", "Nebula"],
-    price: 550,
-    previewImage: "assets/capes/liquid-nebula-preview.png",
-    sheetImage: "assets/capes/liquid-nebula-sheet.png",
-    textureImage: "assets/capes/liquid-nebula-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "chronos",
-    category: "capes",
-    name: "Chronos",
-    desc: "Concentric orbital rings and pixel planets circling a tiny white sun.",
+    name: "Shining Trophy",
+    desc: "Tournament champion cape — a bright gold trophy on deep night cloth. Awarded to upcoming tournament winners.",
     rarity: "legendary",
-    tags: ["Animated", "Legendary"],
-    price: 800,
-    previewImage: "assets/capes/chronos-preview.png",
-    sheetImage: "assets/capes/chronos-sheet.png",
-    textureImage: "assets/capes/chronos-texture.png",
-    frameCount: 24,
+    tags: ["Animated", "Tournament", "Champion"],
+    price: 750,
+    tournament: true,
+    previewImage: "assets/capes/shining-trophy-preview.png",
+    sheetImage: "assets/capes/shining-trophy-sheet.png",
+    textureImage: "assets/capes/shining-trophy-texture.png",
+    frameCount: 32,
     equipped: false,
   },
   {
-    id: "lunar-cycle",
+    id: "shining-medal",
     category: "capes",
-    name: "Lunar Cycle",
-    desc: "A single moon waxes and wanes through a clean phase loop.",
-    rarity: "rare",
-    tags: ["Animated", "Moon"],
-    price: 380,
-    previewImage: "assets/capes/lunar-cycle-preview.png",
-    sheetImage: "assets/capes/lunar-cycle-sheet.png",
-    textureImage: "assets/capes/lunar-cycle-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "cosmic-pulse",
-    category: "capes",
-    name: "Cosmic Pulse",
-    desc: "A quiet digital grid; ice-white nodes cascade from shoulders to hem.",
-    rarity: "uncommon",
-    tags: ["Animated", "Grid"],
-    price: 300,
-    previewImage: "assets/capes/cosmic-pulse-preview.png",
-    sheetImage: "assets/capes/cosmic-pulse-sheet.png",
-    textureImage: "assets/capes/cosmic-pulse-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "aurora-borealis",
-    category: "capes",
-    name: "Aurora Borealis",
-    desc: "Ethereal cyan curtains ripple like silk across a deep night sky.",
-    rarity: "epic",
-    tags: ["Animated", "Aurora"],
-    price: 580,
-    previewImage: "assets/capes/aurora-borealis-preview.png",
-    sheetImage: "assets/capes/aurora-borealis-sheet.png",
-    textureImage: "assets/capes/aurora-borealis-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "orion-shimmer",
-    category: "capes",
-    name: "Orion's Shimmer",
-    desc: "A mapped constellation shimmering independently along faint silver links.",
-    rarity: "rare",
-    tags: ["Animated", "Constellation"],
-    price: 420,
-    previewImage: "assets/capes/orion-shimmer-preview.png",
-    sheetImage: "assets/capes/orion-shimmer-sheet.png",
-    textureImage: "assets/capes/orion-shimmer-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "glitch-void",
-    category: "capes",
-    name: "Glitch Void",
-    desc: "Sleek black cloth that randomly slices, shifts, and flashes neon static.",
-    rarity: "epic",
-    tags: ["Animated", "Glitch"],
-    price: 620,
-    previewImage: "assets/capes/glitch-void-preview.png",
-    sheetImage: "assets/capes/glitch-void-sheet.png",
-    textureImage: "assets/capes/glitch-void-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "cosmic-dust",
-    category: "capes",
-    name: "Cosmic Dust",
-    desc: "The hem dissolves into rising silver sparks that fade into the void.",
-    rarity: "uncommon",
-    tags: ["Animated", "Particles"],
-    price: 280,
-    previewImage: "assets/capes/cosmic-dust-preview.png",
-    sheetImage: "assets/capes/cosmic-dust-sheet.png",
-    textureImage: "assets/capes/cosmic-dust-texture.png",
-    frameCount: 24,
+    name: "Shining Medal",
+    desc: "Tournament champion cape — a ribboned gold medal on deep night cloth. Awarded to upcoming tournament winners.",
+    rarity: "legendary",
+    tags: ["Animated", "Tournament", "Champion"],
+    price: 650,
+    tournament: true,
+    previewImage: "assets/capes/shining-medal-preview.png",
+    sheetImage: "assets/capes/shining-medal-sheet.png",
+    textureImage: "assets/capes/shining-medal-texture.png",
+    frameCount: 32,
     equipped: false,
   },
   {
@@ -287,21 +539,49 @@ const COSMETICS = [
     previewImage: "assets/capes/supernova-burst-preview.png",
     sheetImage: "assets/capes/supernova-burst-sheet.png",
     textureImage: "assets/capes/supernova-burst-texture.png",
-    frameCount: 24,
+    frameCount: 32,
     equipped: false,
   },
   {
-    id: "satellite-signal",
+    id: "event-horizon",
     category: "capes",
-    name: "Satellite Signal",
-    desc: "A retro vector satellite sends crisp concentric waves into the dark.",
+    name: "Event Horizon",
+    desc: "A matte-black singularity with silver–violet light lazily lensing around its edge.",
+    rarity: "legendary",
+    tags: ["Animated", "Legendary", "Exclusive"],
+    price: 850,
+    previewImage: "assets/capes/event-horizon-preview.png",
+    sheetImage: "assets/capes/event-horizon-sheet.png",
+    textureImage: "assets/capes/event-horizon-texture.png",
+    frameCount: 32,
+    equipped: false,
+  },
+  {
+    id: "solar-eclipse",
+    category: "capes",
+    name: "Solar Eclipse",
+    desc: "A black lunar disc crowned by a flickering white corona and soft flare wisps.",
+    rarity: "epic",
+    tags: ["Animated", "Solar"],
+    price: 600,
+    previewImage: "assets/capes/solar-eclipse-preview.png",
+    sheetImage: "assets/capes/solar-eclipse-sheet.png",
+    textureImage: "assets/capes/solar-eclipse-texture.png",
+    frameCount: 32,
+    equipped: false,
+  },
+  {
+    id: "lunar-cycle",
+    category: "capes",
+    name: "Lunar Cycle",
+    desc: "A single moon waxes and wanes through a clean phase loop.",
     rarity: "rare",
-    tags: ["Animated", "Retro"],
-    price: 360,
-    previewImage: "assets/capes/satellite-signal-preview.png",
-    sheetImage: "assets/capes/satellite-signal-sheet.png",
-    textureImage: "assets/capes/satellite-signal-texture.png",
-    frameCount: 24,
+    tags: ["Animated", "Moon"],
+    price: 380,
+    previewImage: "assets/capes/lunar-cycle-preview.png",
+    sheetImage: "assets/capes/lunar-cycle-sheet.png",
+    textureImage: "assets/capes/lunar-cycle-texture.png",
+    frameCount: 32,
     equipped: false,
   },
   {
@@ -315,92 +595,7 @@ const COSMETICS = [
     previewImage: "assets/capes/dark-matter-waves-preview.png",
     sheetImage: "assets/capes/dark-matter-waves-sheet.png",
     textureImage: "assets/capes/dark-matter-waves-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "plus-sigil",
-    category: "capes",
-    name: "Plus Sigil",
-    desc: "Space+ exclusive — a silver plus mark that slowly blooms and retracts in the dark.",
-    rarity: "legendary",
-    tags: ["Animated", "Space+", "Exclusive"],
-    price: null,
-    exclusive: "spaceplus",
-    previewImage: "assets/capes/plus-sigil-preview.png",
-    sheetImage: "assets/capes/plus-sigil-sheet.png",
-    textureImage: "assets/capes/plus-sigil-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "member-orbit",
-    category: "capes",
-    name: "Member Orbit",
-    desc: "Space+ exclusive — dual orbital rings with a soft silver pulse reserved for members.",
-    rarity: "epic",
-    tags: ["Animated", "Space+", "Exclusive"],
-    price: null,
-    exclusive: "spaceplus",
-    previewImage: "assets/capes/member-orbit-preview.png",
-    sheetImage: "assets/capes/member-orbit-sheet.png",
-    textureImage: "assets/capes/member-orbit-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "priority-flare",
-    category: "capes",
-    name: "Priority Flare",
-    desc: "Space+ exclusive — a quiet field then a crisp priority flare that echoes down the cape.",
-    rarity: "legendary",
-    tags: ["Animated", "Space+", "Exclusive"],
-    price: null,
-    exclusive: "spaceplus",
-    previewImage: "assets/capes/priority-flare-preview.png",
-    sheetImage: "assets/capes/priority-flare-sheet.png",
-    textureImage: "assets/capes/priority-flare-texture.png",
-    frameCount: 24,
-    equipped: false,
-  },
-  {
-    id: "space-pup",
-    category: "pets",
-    name: "Space Pup",
-    desc: "A loyal pup in a tiny astronaut suit, orbiting your shoulder.",
-    rarity: "rare",
-    tags: ["Companion"],
-    preview: "🐕",
-    equipped: true,
-  },
-  {
-    id: "star-fox",
-    category: "pets",
-    name: "Star Fox Pet",
-    desc: "A cosmic fox with a glowing tail that leaves stardust in its wake.",
-    rarity: "legendary",
-    tags: ["Animated", "Rare Drop"],
-    preview: "🦊",
-    equipped: false,
-  },
-  {
-    id: "orbital-cat",
-    category: "pets",
-    name: "Orbital Cat",
-    desc: "A zero-gravity cat that drifts in a slow orbit around you.",
-    rarity: "epic",
-    tags: ["Floating"],
-    preview: "🐱",
-    equipped: false,
-  },
-  {
-    id: "cosmic-slime",
-    category: "pets",
-    name: "Cosmic Slime",
-    desc: "A translucent slime blob filled with tiny twinkling stars.",
-    rarity: "common",
-    tags: ["Starter"],
-    preview: "✨",
+    frameCount: 32,
     equipped: false,
   },
 ];
@@ -419,7 +614,323 @@ const PROFILE_ROLES = {
   },
 };
 
-/** Latest auth snapshot for ownership / role checks. */
+/** Credits / Thanks page roster — skins load from Minecraft usernames. */
+const THANKS_TEAM = [
+  {
+    username: "eagerz",
+    name: "Eagerz",
+    role: "Owner",
+    roleKey: "owner",
+  },
+  {
+    username: "scood",
+    name: "Scood",
+    role: "Developer",
+    roleKey: "developer",
+  },
+  {
+    username: "sussybara",
+    name: "Sussybara",
+    role: "Staff",
+    roleKey: "staff",
+  },
+  {
+    username: "MHF_Alex",
+    name: "Nova",
+    role: "Developer",
+    roleKey: "developer",
+  },
+  {
+    username: "MHF_Steve",
+    name: "Orbit",
+    role: "Staff",
+    roleKey: "staff",
+  },
+  {
+    username: "jeb_",
+    name: "Beacon",
+    role: "Staff",
+    roleKey: "staff",
+  },
+  {
+    username: "Dinnerbone",
+    name: "Comet",
+    role: "Contributor",
+    roleKey: "contributor",
+  },
+];
+
+function renderThanksGrid() {
+  const grid = document.getElementById("thanks-grid");
+  if (!grid) return;
+
+  grid.innerHTML = THANKS_TEAM.map((member) => {
+    const skin = `https://mc-heads.net/body/${encodeURIComponent(member.username)}/180`;
+    const roleKey = escapeHtml(member.roleKey || "staff");
+    return `
+      <article class="thanks-card" role="listitem" data-role="${roleKey}">
+        <div class="thanks-card-skin-wrap">
+          <img
+            class="thanks-card-skin"
+            src="${skin}"
+            alt="${escapeHtml(member.name)} skin"
+            width="120"
+            height="240"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+        </div>
+        <div class="thanks-card-box">
+          <h3 class="thanks-card-name">${escapeHtml(member.name)}</h3>
+          <span class="thanks-role-capsule thanks-role-${roleKey}">${escapeHtml(member.role)}</span>
+        </div>
+      </article>`;
+  }).join("");
+
+  grid.querySelectorAll(".thanks-card-skin").forEach((img) => {
+    img.addEventListener("error", () => {
+      img.src = "https://mc-heads.net/body/MHF_Steve/180";
+    }, { once: true });
+  });
+}
+
+function initThanks() {
+  renderThanksGrid();
+}
+
+function setHostLine(el, message, tone = "") {
+  if (!el) return;
+  el.textContent = message || "";
+  el.classList.remove("is-error", "is-ok");
+  if (tone === "error") el.classList.add("is-error");
+  if (tone === "ok") el.classList.add("is-ok");
+}
+
+function setHostPill(state, label) {
+  const pill = document.getElementById("host-status-pill");
+  if (!pill) return;
+  pill.dataset.state = state;
+  pill.textContent = label;
+}
+
+function renderHostSession(session) {
+  const codePanel = document.getElementById("host-code-panel");
+  const codeValue = document.getElementById("host-code-value");
+  const codeMeta = document.getElementById("host-code-meta");
+  const stopBtn = document.getElementById("host-stop-btn");
+  const startBtn = document.getElementById("host-start-btn");
+
+  if (session?.code) {
+    codePanel?.removeAttribute("hidden");
+    if (codeValue) codeValue.textContent = session.code;
+    const endpoint = session.endpoint;
+    const parts = [
+      endpoint?.host ? `${endpoint.host}:${endpoint.port}` : null,
+      session.geyserVersion ? `Geyser ${session.geyserVersion}` : null,
+      endpoint?.tunnelMode ? endpoint.tunnelMode.toUpperCase() : null,
+    ].filter(Boolean);
+    if (codeMeta) codeMeta.textContent = parts.join(" · ");
+    stopBtn?.removeAttribute("hidden");
+    startBtn?.setAttribute("disabled", "true");
+    setHostPill("live", "Live");
+  } else {
+    codePanel?.setAttribute("hidden", "");
+    if (codeValue) codeValue.textContent = "SP-------";
+    if (codeMeta) codeMeta.textContent = "";
+    stopBtn?.setAttribute("hidden", "");
+    startBtn?.removeAttribute("disabled");
+    setHostPill("idle", "Idle");
+  }
+}
+
+async function refreshHostView() {
+  const api = window.electronAPI;
+  const versionNote = document.getElementById("host-version-note");
+  if (!api?.bridgeStatus) {
+    setHostLine(document.getElementById("host-status-line"), "Space Bridge is only available in the desktop app.", "error");
+    return;
+  }
+
+  try {
+    const status = await api.bridgeStatus();
+    renderHostSession(status?.session);
+    if (status?.hosting) {
+      setHostPill("live", "Live");
+    }
+
+    if (versionNote && api.bridgeResolveVersions) {
+      const mcVersion = document.getElementById("host-mc-version")?.value || "1.21.1";
+      const resolved = await api.bridgeResolveVersions({ minecraftVersion: mcVersion });
+      if (resolved?.geyserVersion) {
+        versionNote.textContent = `Auto profile: Minecraft ${resolved.minecraftVersion} → Geyser ${resolved.geyserVersion} (${resolved.resolution || "auto"}).`;
+      }
+    }
+  } catch (err) {
+    setHostLine(document.getElementById("host-status-line"), err?.message || "Could not load bridge status.", "error");
+  }
+}
+
+function initHost() {
+  const api = window.electronAPI;
+  const startBtn = document.getElementById("host-start-btn");
+  const stopBtn = document.getElementById("host-stop-btn");
+  const joinBtn = document.getElementById("host-join-btn");
+  const copyBtn = document.getElementById("host-copy-address-btn");
+  const hostLine = document.getElementById("host-status-line");
+  const joinLine = document.getElementById("host-join-status");
+  const mcInput = document.getElementById("host-mc-version");
+  let joinPlatform = "bedrock";
+  let lastResolvedAddress = "";
+
+  document.querySelectorAll("[data-join-platform]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      joinPlatform = btn.dataset.joinPlatform === "java" ? "java" : "bedrock";
+      document.querySelectorAll("[data-join-platform]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.joinPlatform === joinPlatform);
+      });
+      if (joinBtn) {
+        joinBtn.textContent = joinPlatform === "java" ? "Connect on Java" : "Connect on Bedrock";
+      }
+    });
+  });
+
+  mcInput?.addEventListener("change", () => {
+    void refreshHostView();
+  });
+
+  startBtn?.addEventListener("click", async () => {
+    if (!api?.bridgeHost) {
+      setHostLine(hostLine, "Bridge host API unavailable.", "error");
+      return;
+    }
+    const port = Number(document.getElementById("host-world-port")?.value || 25565);
+    const minecraftVersion = String(mcInput?.value || "1.21.1").trim();
+    setHostPill("busy", "Starting");
+    setHostLine(hostLine, "Preparing Geyser and network mapping…");
+    startBtn.disabled = true;
+
+    const result = await api.bridgeHost({ localWorldPort: port, minecraftVersion });
+    if (result?.success) {
+      renderHostSession({
+        code: result.code,
+        endpoint: result.endpoint,
+        geyserVersion: result.versions?.geyserVersion,
+      });
+      setHostLine(
+        hostLine,
+        `Live. Bedrock ${result.endpoint?.bedrockAddress || ""} · Java ${result.endpoint?.javaAddress || ""}`,
+        "ok"
+      );
+    } else {
+      renderHostSession(null);
+      const msg = result?.error?.message || result?.error?.title || "Failed to start Space Bridge.";
+      setHostLine(hostLine, msg, "error");
+    }
+    startBtn.disabled = false;
+  });
+
+  stopBtn?.addEventListener("click", async () => {
+    if (!api?.bridgeStop) return;
+    setHostPill("busy", "Stopping");
+    setHostLine(hostLine, "Stopping bridge…");
+    await api.bridgeStop();
+    renderHostSession(null);
+    setHostLine(hostLine, "Bridge stopped.", "ok");
+  });
+
+  copyBtn?.addEventListener("click", async () => {
+    if (!lastResolvedAddress) return;
+    try {
+      await navigator.clipboard.writeText(lastResolvedAddress);
+      setHostLine(joinLine, `Copied ${lastResolvedAddress}`, "ok");
+    } catch {
+      setHostLine(joinLine, lastResolvedAddress, "ok");
+    }
+  });
+
+  joinBtn?.addEventListener("click", async () => {
+    if (!api?.bridgeJoin) {
+      setHostLine(joinLine, "Bridge join API unavailable.", "error");
+      return;
+    }
+    const code = String(document.getElementById("host-join-code")?.value || "").trim();
+    if (!code) {
+      setHostLine(joinLine, "Enter a Space Bridge code.", "error");
+      return;
+    }
+    const preferLocal = Boolean(document.getElementById("host-join-local")?.checked);
+    setHostLine(joinLine, joinPlatform === "java" ? "Resolving code for Java…" : "Resolving code for Bedrock…");
+    joinBtn.disabled = true;
+
+    const result = await api.bridgeJoin({
+      code,
+      platform: joinPlatform,
+      preferLocal,
+    });
+    joinBtn.disabled = false;
+
+    const resolvedEl = document.getElementById("host-resolved");
+    const resolvedAddr = document.getElementById("host-resolved-address");
+
+    if (!result?.success) {
+      const msg = result?.error?.message || result?.error?.title || "Could not join with that code.";
+      setHostLine(joinLine, msg, "error");
+      resolvedEl?.setAttribute("hidden", "");
+      copyBtn?.setAttribute("hidden", "");
+      return;
+    }
+
+    lastResolvedAddress = result.endpoint?.address || "";
+    if (resolvedEl && resolvedAddr && lastResolvedAddress) {
+      resolvedAddr.textContent = lastResolvedAddress;
+      resolvedEl.removeAttribute("hidden");
+      copyBtn?.removeAttribute("hidden");
+    }
+
+    if (joinPlatform === "java") {
+      setHostLine(joinLine, `Launching Java → ${lastResolvedAddress}…`);
+      if (!api.launchGame) {
+        setHostLine(joinLine, `Java address ready: ${lastResolvedAddress}. Launch Minecraft and join Multiplayer.`, "ok");
+        return;
+      }
+      const launch = await api.launchGame({
+        version: result.launch?.version || "1.21.1",
+        loader: result.launch?.loader || "fabric",
+        server: result.launch?.server,
+        port: result.launch?.port,
+      });
+      if (launch?.success) {
+        setHostLine(joinLine, `Connecting to ${lastResolvedAddress}…`, "ok");
+      } else {
+        setHostLine(
+          joinLine,
+          launch?.error || `Could not auto-launch. Join Multiplayer → ${lastResolvedAddress}`,
+          "error"
+        );
+      }
+      return;
+    }
+
+    const hint = result.bedrock?.hint || "Open Servers in Bedrock and select Space Bridge.";
+    setHostLine(joinLine, `Bedrock ready at ${lastResolvedAddress}. ${hint}`, "ok");
+  });
+
+  api?.onBridgeStatus?.((payload) => {
+    if (payload?.label) setHostLine(hostLine, payload.label);
+    if (payload?.phase === "ready") setHostPill("live", "Live");
+  });
+
+  api?.onBridgeError?.((payload) => {
+    const msg = payload?.message || payload?.title || "Bridge error";
+    setHostLine(hostLine, msg, payload?.severity === "warning" ? "" : "error");
+  });
+
+  api?.onBridgeExit?.(() => {
+    renderHostSession(null);
+    setHostLine(hostLine, "Geyser stopped.", "error");
+  });
+}
+
 let currentAuthState = { isLoggedIn: false, profile: null };
 
 /** Tags that are rarity labels — never shown on cape/pet cards. */
@@ -434,25 +945,6 @@ const RARITY_TAG_NAMES = new Set([
 
 function cosmeticDisplayTags(tags) {
   return (tags || []).filter((tag) => !RARITY_TAG_NAMES.has(String(tag).toLowerCase()));
-}
-
-function renderHomeNewsCard(item) {
-  return `
-    <article class="home-news-card" data-news="${item.id}">
-      <div class="home-news-card-meta">
-        <span class="home-news-card-tag">${escapeHtml(item.tag)}</span>
-        <time class="home-news-card-date" datetime="${escapeHtml(item.date)}">${escapeHtml(item.date)}</time>
-      </div>
-      <h3 class="home-news-card-title">${escapeHtml(item.title)}</h3>
-      <p class="home-news-card-desc">${escapeHtml(item.desc)}</p>
-    </article>
-  `;
-}
-
-function initHomeNews() {
-  const list = document.getElementById("home-news-list");
-  if (!list) return;
-  list.innerHTML = HOME_NEWS.map(renderHomeNewsCard).join("");
 }
 
 function renderCapePreview(previewClass) {
@@ -569,13 +1061,19 @@ function purchaseCosmetic(id) {
   return { success: true };
 }
 
+function capeSheetStyle(item) {
+  const frames = Math.max(1, Number(item.frameCount) || 24);
+  const duration = (frames * 0.1).toFixed(2);
+  return `--cape-sheet-frames: ${frames}; --cape-sheet-duration: ${duration}s;`;
+}
+
 function renderAnimatedCapePreview(item) {
   const sheet = escapeHtml(item.sheetImage || item.previewImage || "");
   const alt = escapeHtml(item.name);
   return `
     <div class="cape-live-preview" aria-hidden="true">
       <div class="cape-live-cape-window">
-        <img class="cape-live-sheet" src="${sheet}" alt="${alt} animation" />
+        <img class="cape-live-sheet" src="${sheet}" alt="${alt} animation" style="${capeSheetStyle(item)}" data-frame-count="${Number(item.frameCount) || 24}" />
       </div>
     </div>`;
 }
@@ -634,9 +1132,10 @@ function renderCosmeticCard(item) {
     : "";
 
   return `
-    <article class="cosmetic-card ${item.equipped ? "equipped" : ""} ${owned ? "owned" : "locked"} ${isSpacePlusItem ? "spaceplus-exclusive" : ""}" data-cosmetic="${item.id}" data-category="${item.category}" data-open-cosmetic="${item.id}" role="button" tabindex="0">
+    <article class="cosmetic-card ${item.equipped ? "equipped" : ""} ${owned ? "owned" : "locked"} ${isSpacePlusItem ? "spaceplus-exclusive" : ""} ${item.tournament ? "tournament-champion" : ""}" data-cosmetic="${item.id}" data-category="${item.category}" data-open-cosmetic="${item.id}" role="button" tabindex="0">
       <div class="cosmetic-preview${previewClass}">
         ${renderCosmeticPreview(item)}
+        ${item.tournament ? '<span class="tournament-badge">Tournament</span>' : ""}
         ${isSpacePlusItem ? '<span class="cosmetic-spaceplus-flag">Space+</span>' : ""}
         ${item.equipped ? '<span class="cosmetic-equipped-badge">Equipped</span>' : ""}
       </div>
@@ -678,6 +1177,7 @@ function renderCosmeticsGrid() {
     : '<div class="cosmetics-empty">No cosmetics in this category yet.</div>';
 
   updateCosmeticsMeta(cosmeticsState.tab);
+  initCosmeticCardColors(grid);
 
   if (cosmeticDetailOpen && cosmeticDetailId) {
     const still = COSMETICS.find((entry) => entry.id === cosmeticDetailId);
@@ -699,9 +1199,9 @@ function renderCosmeticDetailContent(item) {
     .join("");
 
   const preview = item.sheetImage
-    ? `<div class="cosmetic-detail-hero">
+    ? `<div class="cosmetic-detail-hero ${item.tournament ? "cosmetic-detail-hero--tournament" : ""}">
          <div class="cape-live-cape-window cape-live-cape-window--xl">
-           <img class="cape-live-sheet" src="${escapeHtml(item.sheetImage)}" alt="${escapeHtml(item.name)}" />
+           <img class="cape-live-sheet" src="${escapeHtml(item.sheetImage)}" alt="${escapeHtml(item.name)}" style="${capeSheetStyle(item)}" data-frame-count="${Number(item.frameCount) || 24}" />
          </div>
        </div>`
     : `<div class="cosmetic-detail-hero cosmetic-detail-hero--icon">${renderCosmeticPreview(item)}</div>`;
@@ -741,7 +1241,7 @@ function renderCosmeticDetailContent(item) {
     ${preview}
     <header class="cosmetic-detail-header">
       <div>
-        <p class="cosmetic-detail-kicker">${escapeHtml(item.category === "capes" ? "Cape" : "Pet")}${isSpacePlusItem ? " · Space+" : ""}</p>
+        <p class="cosmetic-detail-kicker">${item.tournament ? "Tournament Champion" : escapeHtml(item.category === "capes" ? "Cape" : "Pet")}${isSpacePlusItem ? " · Space+" : ""}</p>
         <h2 class="cosmetic-detail-title" id="cosmetic-detail-title">${escapeHtml(item.name)}</h2>
       </div>
     </header>
@@ -754,7 +1254,18 @@ function renderCosmeticDetailContent(item) {
 
 function openCosmeticDetail(id) {
   const overlay = document.getElementById("cosmetic-detail-overlay");
-  const item = COSMETICS.find((entry) => entry.id === id);
+  let item = COSMETICS.find((entry) => entry.id === id);
+  // Cosmic Shop items (titles/icons/capes) may not be on the old wardrobe list
+  if (!item && window.__cosmicShopCatalog) {
+    const shopItem = window.__cosmicShopCatalog.find((entry) => entry.id === id);
+    if (shopItem) {
+      item = {
+        ...shopItem,
+        price: shopItem.creditPrice ?? shopItem.price ?? null,
+        equipped: false,
+      };
+    }
+  }
   if (!overlay || !item) return;
 
   cosmeticDetailId = id;
@@ -764,6 +1275,8 @@ function openCosmeticDetail(id) {
   overlay.setAttribute("aria-hidden", "false");
   renderCosmeticDetailContent(item);
 }
+
+window.openCosmeticDetail = openCosmeticDetail;
 
 function closeCosmeticDetail() {
   const overlay = document.getElementById("cosmetic-detail-overlay");
@@ -843,30 +1356,59 @@ function initCosmeticDetailPanel() {
   });
 }
 
+function getSelectedInstance() {
+  return instanceState.items.find((item) => item.id === instanceState.selectedId) || null;
+}
+
+function getSelectedInstanceContent(bucket) {
+  const instance = getSelectedInstance();
+  return instance?.content?.[bucket] || {};
+}
+
 function getInstalledMods() {
-  try {
-    return JSON.parse(localStorage.getItem(INSTALLED_KEY) || "{}");
-  } catch {
-    return {};
-  }
+  return getSelectedInstanceContent("mods");
 }
 
-function setInstalledMod(projectId, data) {
-  const installed = getInstalledMods();
-  installed[projectId] = data;
-  localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed));
-  updateActiveModCount();
+function getInstalledResourcePacks() {
+  return getSelectedInstanceContent("resourcepacks");
 }
 
-function removeInstalledMod(projectId) {
-  const installed = getInstalledMods();
-  delete installed[projectId];
-  localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed));
-  updateActiveModCount();
+function getInstalledShaders() {
+  return getSelectedInstanceContent("shaderpacks");
 }
 
 function isModInstalled(projectId) {
   return Boolean(getInstalledMods()[projectId]);
+}
+
+function isResourcePackInstalled(projectId) {
+  return Boolean(getInstalledResourcePacks()[projectId]);
+}
+
+function isShaderInstalled(projectId) {
+  return Boolean(getInstalledShaders()[projectId]);
+}
+
+function getInstalledModpacks() {
+  return Object.fromEntries(
+    instanceState.items
+      .filter((item) => item.source?.type === "modpack" && item.source?.projectId)
+      .map((item) => [
+        item.source.projectId,
+        {
+          title: item.source.title || item.name,
+          slug: item.source.slug || "",
+          versionId: item.source.versionId || null,
+          versionNumber: item.content?.modpacks?.[item.source.projectId]?.versionNumber || null,
+          installedAt: item.createdAt || 0,
+          instanceId: item.id,
+        },
+      ])
+  );
+}
+
+function isModpackInstalled(projectId) {
+  return Boolean(getInstalledModpacks()[projectId]);
 }
 
 function formatFooterVersion() {
@@ -884,6 +1426,599 @@ function syncLaunchToApp() {
   if (modrinthLoader && modrinthState.homeLoader === "fabric") {
     modrinthLoader.value = "fabric";
   }
+
+  syncLaunchMenuFromSelects();
+}
+
+let launchVersionPatchKey = null;
+
+function parseMcVersion(version) {
+  return version.split(".").map((part) => parseInt(part, 10) || 0);
+}
+
+function compareMcVersions(a, b) {
+  const partsA = parseMcVersion(a);
+  const partsB = parseMcVersion(b);
+  const length = Math.max(partsA.length, partsB.length);
+
+  for (let i = 0; i < length; i += 1) {
+    const diff = (partsA[i] || 0) - (partsB[i] || 0);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+}
+
+function isFabricLoaderSelected() {
+  const loaderSelect = document.getElementById("home-loader");
+  const loader = loaderSelect?.value || modrinthState.homeLoader || "fabric";
+  return loader !== "vanilla";
+}
+
+function getVersionsForLoader(loader = modrinthState.homeLoader) {
+  if (loader === "vanilla") return [...MINECRAFT_VERSIONS];
+  return fabricSupportedVersions.length ? [...fabricSupportedVersions] : [DEFAULT_FABRIC_MC];
+}
+
+function isFabricVersionSupported(version) {
+  return fabricSupportedVersions.includes(String(version || "").trim());
+}
+
+function isFabricPinLaunchError(error) {
+  return /No Fabric API pin|Fabric API required/i.test(String(error || ""));
+}
+
+function describeFabricVersionError(version) {
+  const supported = fabricSupportedVersions.length
+    ? fabricSupportedVersions.join(", ")
+    : DEFAULT_FABRIC_MC;
+  return `Fabric is not set up for Minecraft ${version}. Supported Fabric versions: ${supported}. Use ${DEFAULT_FABRIC_MC} (recommended) or switch to Vanilla.`;
+}
+
+function validateLaunchSelection(version, loader) {
+  if (isLegacyJavaTarget(version) || loader === "vanilla") {
+    return null;
+  }
+  if (loader !== "vanilla" && !isFabricVersionSupported(version)) {
+    return describeFabricVersionError(version);
+  }
+  return null;
+}
+
+function getJavaTargetLabel(version) {
+  const entry = JAVA_TARGET_POOL.find((item) => item.value === version);
+  return entry?.label || version;
+}
+
+function isLegacyJavaTarget(version) {
+  return JAVA_TARGET_POOL.some((item) => item.value === version && item.legacy);
+}
+
+function syncBedrockChannelUI() {
+  const preview = Boolean(modrinthState.bedrockPreview);
+  document.querySelectorAll("[data-bedrock-channel]").forEach((btn) => {
+    const active = (btn.dataset.bedrockChannel === "preview") === preview;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  const hint = document.getElementById("home-bedrock-channel-hint");
+  if (hint) {
+    hint.textContent = preview
+      ? "Opens Microsoft.MinecraftWindowsBeta"
+      : "Opens Microsoft.MinecraftUWP";
+  }
+  const channel = document.getElementById("home-bedrock-channel");
+  if (channel) channel.hidden = modrinthState.edition !== "bedrock";
+}
+
+function setBedrockPreview(enabled, { persist = true } = {}) {
+  modrinthState.bedrockPreview = Boolean(enabled);
+  if (persist) {
+    try {
+      localStorage.setItem(BEDROCK_PREVIEW_KEY, modrinthState.bedrockPreview ? "true" : "false");
+    } catch {
+      /* ignore */
+    }
+  }
+  syncBedrockChannelUI();
+  syncPlayButtonForEdition();
+}
+
+function populateHomeVersionSelect(preferredVersion) {
+  const versionSelect = document.getElementById("home-version");
+  const triggerText = document.getElementById("home-version-trigger-text");
+  const menu = document.getElementById("home-version-menu");
+  if (!versionSelect && !menu) return;
+
+  const edition = modrinthState.edition === "bedrock" ? "bedrock" : "java";
+
+  // Bedrock uses Retail/Preview channel UI — keep hidden select empty.
+  if (edition === "bedrock") {
+    if (versionSelect) versionSelect.innerHTML = "";
+    if (menu) menu.innerHTML = "";
+    if (triggerText) triggerText.textContent = modrinthState.bedrockPreview ? "Preview" : "Retail";
+    syncBedrockChannelUI();
+    return;
+  }
+
+  const loader = document.getElementById("home-loader")?.value || modrinthState.homeLoader;
+  const options = getVersionsForLoader(loader);
+
+  let selected =
+    preferredVersion ||
+    modrinthState.version ||
+    versionSelect?.value ||
+    triggerText?.textContent?.trim();
+
+  if (!options.includes(selected)) {
+    selected = options.includes(DEFAULT_JAVA_TARGET)
+      ? DEFAULT_JAVA_TARGET
+      : options.includes(DEFAULT_FABRIC_MC)
+        ? DEFAULT_FABRIC_MC
+        : options[0];
+  }
+
+  if (versionSelect) {
+    versionSelect.innerHTML = options
+      .map((v) => `<option value="${v}"${v === selected ? " selected" : ""}>${getJavaTargetLabel(v)}</option>`)
+      .join("");
+  }
+
+  if (menu) {
+    menu.innerHTML = options
+      .map(
+        (v) =>
+          `<li role="none"><button type="button" class="home-version-option${v === selected ? " is-selected" : ""}" role="option" data-version="${escapeHtml(v)}" aria-selected="${v === selected ? "true" : "false"}">${escapeHtml(getJavaTargetLabel(v))}</button></li>`
+      )
+      .join("");
+  }
+
+  if (triggerText) triggerText.textContent = getJavaTargetLabel(selected) || selected || "";
+  modrinthState.version = selected;
+
+  // Legacy 1.8.9 forces Vanilla loader.
+  if (isLegacyJavaTarget(selected)) {
+    const loaderSelect = document.getElementById("home-loader");
+    if (loaderSelect && loaderSelect.value !== "vanilla") {
+      loaderSelect.value = "vanilla";
+      modrinthState.homeLoader = "vanilla";
+    }
+  }
+}
+
+function syncVisibleVersionSelect() {
+  const versionSelect = document.getElementById("home-version");
+  const triggerText = document.getElementById("home-version-trigger-text");
+  const menu = document.getElementById("home-version-menu");
+  if (!versionSelect) return;
+
+  const selected = versionSelect.value;
+  const label = getJavaTargetLabel(selected);
+  if (triggerText && triggerText.textContent !== label) {
+    triggerText.textContent = label;
+  }
+  if (menu) {
+    menu.querySelectorAll(".home-version-option").forEach((btn) => {
+      const isSelected = btn.dataset.version === selected;
+      btn.classList.toggle("is-selected", isSelected);
+      btn.setAttribute("aria-selected", isSelected ? "true" : "false");
+    });
+  }
+}
+
+function setHomeVersionDropdownOpen(open) {
+  const trigger = document.getElementById("home-version-trigger");
+  const menu = document.getElementById("home-version-menu");
+  const dropdown = document.getElementById("home-version-dropdown");
+  if (!trigger || !menu) return;
+
+  menu.hidden = !open;
+  trigger.setAttribute("aria-expanded", open ? "true" : "false");
+  dropdown?.classList.toggle("is-open", open);
+
+  if (open) {
+    const selected = menu.querySelector(".home-version-option.is-selected");
+    (selected || menu.querySelector(".home-version-option"))?.focus();
+  }
+}
+
+function closeHomeVersionDropdown() {
+  setHomeVersionDropdownOpen(false);
+}
+
+function applyVisibleHomeVersion(value) {
+  const versionSelect = document.getElementById("home-version");
+  if (modrinthState.edition === "bedrock") {
+    setBedrockPreview(value === "preview" || value === true);
+    return;
+  }
+  modrinthState.version = value;
+  if (versionSelect) {
+    versionSelect.value = value;
+    versionSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  if (isLegacyJavaTarget(value)) {
+    const loaderSelect = document.getElementById("home-loader");
+    if (loaderSelect) {
+      loaderSelect.value = "vanilla";
+      modrinthState.homeLoader = "vanilla";
+    }
+  }
+  syncVisibleVersionSelect();
+  syncLaunchToApp();
+  closeHomeVersionDropdown();
+}
+
+function syncPlayButtonForEdition() {
+  const playBtn = document.querySelector(".btn-play");
+  if (!playBtn || playBtn.classList.contains("launching")) return;
+
+  const loggedIn = Boolean(currentAuthState?.isLoggedIn);
+  const bedrock = modrinthState.edition === "bedrock";
+  const canLaunch = bedrock || loggedIn;
+  const label = bedrock
+    ? modrinthState.bedrockPreview
+      ? "Open Preview"
+      : "Open Bedrock"
+    : "Launch";
+
+  playBtn.disabled = !canLaunch;
+  playBtn.setAttribute("aria-disabled", canLaunch ? "false" : "true");
+  playBtn.classList.toggle("ready", canLaunch);
+  setPlayButtonLabel(playBtn, label);
+  playBtn.title = bedrock
+    ? modrinthState.bedrockPreview
+      ? "Open Minecraft Bedrock Preview"
+      : "Open Minecraft Bedrock Retail"
+    : loggedIn
+      ? "Launch Minecraft Java"
+      : "Sign in to play";
+}
+
+const JAVA_ONLY_VIEWS = new Set(["content", "store", "library", "create", "spaceplus", "cosmetics"]);
+
+function getActiveViewId() {
+  const active = document.querySelector(".view.active");
+  if (!active?.id?.startsWith("view-")) return "home";
+  return active.id.slice("view-".length);
+}
+
+function syncJavaOnlyChrome() {
+  const bedrock = modrinthState.edition === "bedrock";
+  document.body.dataset.homeEdition = bedrock ? "bedrock" : "java";
+
+  const accountSub = document.getElementById("account-page-sub");
+  if (accountSub) {
+    accountSub.textContent = bedrock
+      ? "Microsoft sign-in and profile"
+      : "Microsoft sign-in, profile, and Space+";
+  }
+
+  if (bedrock && JAVA_ONLY_VIEWS.has(getActiveViewId())) {
+    navigateToView("home");
+  }
+}
+
+function setHomeEdition(edition, { persist = true } = {}) {
+  const next = edition === "bedrock" ? "bedrock" : "java";
+  modrinthState.edition = next;
+  if (persist) {
+    try {
+      localStorage.setItem(HOME_EDITION_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  document.querySelectorAll("[data-edition]").forEach((btn) => {
+    const active = btn.dataset.edition === next;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+
+  const preferred = next === "bedrock" ? null : modrinthState.version;
+  populateHomeVersionSelect(preferred);
+  syncBedrockChannelUI();
+  if (typeof syncLaunchToApp === "function") syncLaunchToApp();
+  syncPlayButtonForEdition();
+  syncJavaOnlyChrome();
+}
+
+function initHomeEditionPicker() {
+  let stored = "java";
+  try {
+    stored = localStorage.getItem(HOME_EDITION_KEY) || "java";
+  } catch {
+    stored = "java";
+  }
+
+  let previewStored = false;
+  try {
+    previewStored = localStorage.getItem(BEDROCK_PREVIEW_KEY) === "true";
+  } catch {
+    previewStored = false;
+  }
+  setBedrockPreview(previewStored, { persist: false });
+  setHomeEdition(stored, { persist: false });
+
+  document.querySelectorAll("[data-edition]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setHomeEdition(btn.dataset.edition);
+    });
+  });
+
+  document.querySelectorAll("[data-bedrock-channel]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setBedrockPreview(btn.dataset.bedrockChannel === "preview");
+    });
+  });
+
+  const trigger = document.getElementById("home-version-trigger");
+  const menu = document.getElementById("home-version-menu");
+  const dropdown = document.getElementById("home-version-dropdown");
+
+  trigger?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = trigger.getAttribute("aria-expanded") !== "true";
+    setHomeVersionDropdownOpen(open);
+  });
+
+  menu?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-version]");
+    if (!option) return;
+    applyVisibleHomeVersion(option.dataset.version);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!dropdown || dropdown.contains(event.target)) return;
+    closeHomeVersionDropdown();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && trigger?.getAttribute("aria-expanded") === "true") {
+      closeHomeVersionDropdown();
+      trigger.focus();
+    }
+  });
+}
+
+function getHomeVersionOptions() {
+  const versionSelect = document.getElementById("home-version");
+  if (!versionSelect) return getVersionsForLoader();
+  const domOptions = Array.from(versionSelect.options).map((opt) => opt.value);
+  return domOptions.length ? domOptions : getVersionsForLoader();
+}
+
+function getLatestHomeVersion(options = getHomeVersionOptions()) {
+  if (!options.length) return null;
+  return options.reduce((best, version) => (
+    compareMcVersions(version, best) > 0 ? version : best
+  ));
+}
+
+function getMajorLine(version) {
+  const parts = version.split(".");
+  if (parts.length >= 2) return `${parts[0]}.${parts[1]}`;
+  return version;
+}
+
+function getPatchVersionsForMajor(major, options = getHomeVersionOptions()) {
+  return options
+    .filter((version) => version === major || version.startsWith(`${major}.`))
+    .sort((a, b) => compareMcVersions(b, a));
+}
+
+function getMajorVersionLines(options = getHomeVersionOptions()) {
+  const majors = new Set();
+  for (const version of options) {
+    majors.add(getMajorLine(version));
+  }
+  return Array.from(majors).sort((a, b) => compareMcVersions(b, a));
+}
+
+function getActiveMajorLine() {
+  const versionSelect = document.getElementById("home-version");
+  if (!versionSelect?.value) return null;
+  return getMajorLine(versionSelect.value);
+}
+
+function renderLaunchVersionLoaderToggle() {
+  const loaderSelect = document.getElementById("home-loader");
+  const loaderToggle = document.getElementById("launch-version-loader-toggle");
+  if (!loaderSelect || !loaderToggle) return;
+
+  loaderToggle.innerHTML = Array.from(loaderSelect.options)
+    .map((opt) => {
+      const selected = opt.value === loaderSelect.value;
+      return `<button type="button" class="launch-version-loader-btn${selected ? " is-selected" : ""}" data-loader="${escapeHtml(opt.value)}" aria-pressed="${selected ? "true" : "false"}">${escapeHtml(opt.textContent)}</button>`;
+    })
+    .join("");
+}
+
+function renderLaunchVersionMajorGrid() {
+  const majorGrid = document.getElementById("launch-version-major-grid");
+  if (!majorGrid) return;
+
+  const options = getHomeVersionOptions();
+  const activeMajor = getActiveMajorLine();
+  const latestVersion = getLatestHomeVersion(options);
+  const versionSelect = document.getElementById("home-version");
+  const latestActive = latestVersion && versionSelect?.value === latestVersion;
+
+  const majorCards = getMajorVersionLines(options)
+    .map((major) => {
+      const active = major === activeMajor;
+      return `<button type="button" class="launch-version-major-card${active ? " is-active" : ""}" data-major="${escapeHtml(major)}">${escapeHtml(major)}</button>`;
+    })
+    .join("");
+
+  const latestCard = latestVersion
+    ? `<button type="button" class="launch-version-major-card is-latest${latestActive ? " is-active" : ""}" data-major="latest">Latest version<span>${escapeHtml(latestVersion)}</span></button>`
+    : "";
+
+  majorGrid.innerHTML = majorCards + latestCard;
+}
+
+function renderLaunchVersionPatchList(majorKey) {
+  const patchList = document.getElementById("launch-version-patch-list");
+  const patchTitle = document.getElementById("launch-version-patch-title");
+  const patchSubtitle = document.getElementById("launch-version-patch-subtitle");
+  const versionSelect = document.getElementById("home-version");
+  if (!patchList || !patchTitle || !patchSubtitle || !versionSelect) return;
+
+  const options = getHomeVersionOptions();
+  const patches = majorKey === "latest"
+    ? [getLatestHomeVersion(options)].filter(Boolean)
+    : getPatchVersionsForMajor(majorKey, options);
+
+  patchTitle.textContent = majorKey === "latest" ? "Latest version" : majorKey;
+  patchSubtitle.textContent = majorKey === "latest"
+    ? "Newest release available"
+    : "Select a patch release";
+
+  patchList.innerHTML = patches
+    .map((version) => {
+      const selected = version === versionSelect.value;
+      return `<li><button type="button" class="launch-version-patch-option${selected ? " is-selected" : ""}" data-version="${escapeHtml(version)}" role="option" aria-selected="${selected ? "true" : "false"}">${escapeHtml(version)}</button></li>`;
+    })
+    .join("");
+}
+
+function showLaunchVersionMajorView() {
+  const majorView = document.getElementById("launch-version-major-view");
+  const patchView = document.getElementById("launch-version-patch-view");
+  if (!majorView || !patchView) return;
+
+  launchVersionPatchKey = null;
+  majorView.hidden = false;
+  patchView.hidden = true;
+  renderLaunchVersionMajorGrid();
+  renderLaunchVersionLoaderToggle();
+}
+
+function showLaunchVersionPatchView(majorKey) {
+  const majorView = document.getElementById("launch-version-major-view");
+  const patchView = document.getElementById("launch-version-patch-view");
+  if (!majorView || !patchView) return;
+
+  launchVersionPatchKey = majorKey;
+  majorView.hidden = true;
+  patchView.hidden = false;
+  renderLaunchVersionPatchList(majorKey);
+  renderLaunchVersionLoaderToggle();
+}
+
+function syncLaunchMenuFromSelects() {
+  renderLaunchVersionMajorGrid();
+  renderLaunchVersionLoaderToggle();
+
+  const patchView = document.getElementById("launch-version-patch-view");
+  if (patchView && !patchView.hidden && launchVersionPatchKey) {
+    renderLaunchVersionPatchList(launchVersionPatchKey);
+  }
+}
+
+function setLaunchMenuOpen(open) {
+  const overlay = document.getElementById("launch-version-overlay");
+  const menuBtn = document.getElementById("btn-launch-menu");
+  const launchSplit = document.getElementById("launch-split");
+  if (!overlay || !menuBtn) return;
+
+  overlay.hidden = !open;
+  overlay.setAttribute("aria-hidden", open ? "false" : "true");
+  menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  launchSplit?.classList.toggle("menu-open", open);
+  document.body.classList.toggle("launch-version-open", open);
+
+  if (open) {
+    showLaunchVersionMajorView();
+  }
+}
+
+function closeLaunchMenu() {
+  setLaunchMenuOpen(false);
+}
+
+function setLaunchMenuInteractive(enabled) {
+  const menuBtn = document.getElementById("btn-launch-menu");
+  if (!menuBtn) return;
+  menuBtn.disabled = !enabled;
+  menuBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
+  if (!enabled) closeLaunchMenu();
+}
+
+function selectHomeVersion(version) {
+  const versionSelect = document.getElementById("home-version");
+  if (!versionSelect || versionSelect.value === version) return;
+
+  versionSelect.value = version;
+  versionSelect.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function selectHomeLoader(loader) {
+  const loaderSelect = document.getElementById("home-loader");
+  if (!loaderSelect || loaderSelect.value === loader) return;
+
+  loaderSelect.value = loader;
+  loaderSelect.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function initLaunchSplitMenu() {
+  const versionSelect = document.getElementById("home-version");
+  const loaderSelect = document.getElementById("home-loader");
+  const menuBtn = document.getElementById("btn-launch-menu");
+  const overlay = document.getElementById("launch-version-overlay");
+  const majorGrid = document.getElementById("launch-version-major-grid");
+  const patchList = document.getElementById("launch-version-patch-list");
+  const backBtn = document.getElementById("launch-version-back");
+  const loaderToggle = document.getElementById("launch-version-loader-toggle");
+  if (!versionSelect || !loaderSelect || !menuBtn || !overlay || !majorGrid || !patchList || !backBtn || !loaderToggle) return;
+
+  syncLaunchMenuFromSelects();
+
+  menuBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (menuBtn.disabled) return;
+    setLaunchMenuOpen(overlay.hidden);
+  });
+
+  majorGrid.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-major]");
+    if (!card) return;
+    showLaunchVersionPatchView(card.dataset.major);
+  });
+
+  patchList.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-version]");
+    if (!option) return;
+    selectHomeVersion(option.dataset.version);
+    syncLaunchMenuFromSelects();
+    closeLaunchMenu();
+  });
+
+  backBtn.addEventListener("click", () => {
+    showLaunchVersionMajorView();
+  });
+
+  loaderToggle.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-loader]");
+    if (!option) return;
+    selectHomeLoader(option.dataset.loader);
+    syncLaunchMenuFromSelects();
+  });
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target.closest("[data-launch-version-close]")) {
+      closeLaunchMenu();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.hidden) closeLaunchMenu();
+  });
+
+  versionSelect.addEventListener("change", syncLaunchMenuFromSelects);
+  loaderSelect.addEventListener("change", syncLaunchMenuFromSelects);
 }
 
 function initLaunchSelectors() {
@@ -891,30 +2026,83 @@ function initLaunchSelectors() {
   const loaderSelect = document.getElementById("home-loader");
   if (!versionSelect || !loaderSelect) return;
 
-  versionSelect.innerHTML = MINECRAFT_VERSIONS.map(
-    (v) => `<option value="${v}"${v === modrinthState.version ? " selected" : ""}>${v}</option>`
-  ).join("");
+  if (!fabricSupportedVersions.includes(modrinthState.version)) {
+    modrinthState.version = isFabricLoaderSelected()
+      ? DEFAULT_FABRIC_MC
+      : MINECRAFT_VERSIONS.includes(modrinthState.version)
+        ? modrinthState.version
+        : DEFAULT_FABRIC_MC;
+  }
 
+  populateHomeVersionSelect(modrinthState.version);
   loaderSelect.value = modrinthState.homeLoader;
   syncLaunchToApp();
 
   versionSelect.addEventListener("change", () => {
     modrinthState.version = versionSelect.value;
+    syncVisibleVersionSelect();
     syncLaunchToApp();
+    const selected = getSelectedInstance();
+    if (selected) {
+      window.electronAPI?.updateInstance?.(selected.id, { mcVersion: versionSelect.value }).then((result) => {
+        if (result?.success) refreshInstances();
+      }).catch(() => {});
+    }
     if (modrinthState.loaded) {
       modrinthState.offset = 0;
       fetchModrinthMods();
+    }
+    if (modpackState.loaded) {
+      modpackState.offset = 0;
+      fetchModrinthModpacks();
+    }
+    if (resourcePackState.loaded) {
+      resourcePackState.offset = 0;
+      fetchResourcePacks();
+    }
+    if (shaderState.loaded) {
+      shaderState.offset = 0;
+      fetchShaders();
     }
   });
 
   loaderSelect.addEventListener("change", () => {
     modrinthState.homeLoader = loaderSelect.value;
+    populateHomeVersionSelect(versionSelect.value);
     syncLaunchToApp();
+    if (loaderSelect.value !== "vanilla") {
+      modpackState.loader = loaderSelect.value;
+      const packLoader = document.getElementById("modpack-loader");
+      if (packLoader) packLoader.value = loaderSelect.value;
+    }
+    const selected = getSelectedInstance();
+    if (selected) {
+      window.electronAPI?.updateInstance?.(selected.id, {
+        loader: loaderSelect.value,
+        mcVersion: versionSelect.value,
+      }).then((result) => {
+        if (result?.success) refreshInstances();
+      }).catch(() => {});
+    }
     if (modrinthState.loaded) {
       modrinthState.offset = 0;
       fetchModrinthMods();
     }
+    if (modpackState.loaded) {
+      modpackState.offset = 0;
+      fetchModrinthModpacks();
+    }
+    if (resourcePackState.loaded) {
+      resourcePackState.offset = 0;
+      fetchResourcePacks();
+    }
+    if (shaderState.loaded) {
+      shaderState.offset = 0;
+      fetchShaders();
+    }
   });
+
+  initLaunchSplitMenu();
 }
 
 function syncModrinthFiltersFromSettings() {
@@ -922,29 +2110,51 @@ function syncModrinthFiltersFromSettings() {
   if (loaderSelect) loaderSelect.value = modrinthState.loader;
 }
 
-function renderModrinthCard(hit) {
-  const installed = isModInstalled(hit.project_id);
+function requireSelectedInstance() {
+  const selected = getSelectedInstance();
+  if (!selected) {
+    throw new Error("Create or select an instance first.");
+  }
+  return selected;
+}
+
+function renderProjectCard(hit, projectType, installAttr) {
+  const installed =
+    projectType === "mod"
+      ? isModInstalled(hit.project_id)
+      : projectType === "resourcepack"
+        ? isResourcePackInstalled(hit.project_id)
+        : projectType === "shader"
+          ? isShaderInstalled(hit.project_id)
+          : isModpackInstalled(hit.project_id);
+  const icon = hit.icon_url
+    ? `<img class="modrinth-icon" src="${escapeHtml(hit.icon_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`
+    : `<div class="modrinth-icon modrinth-icon-fallback" aria-hidden="true"></div>`;
   return `
-    <article class="modrinth-card ${installed ? "installed" : ""}" data-project-id="${hit.project_id}">
-      <img class="modrinth-icon" src="${hit.icon_url}" alt="" loading="lazy" />
+    <article class="modrinth-card ${installed ? "installed" : ""}" data-project-id="${escapeHtml(hit.project_id)}" data-view-mod="${escapeHtml(hit.slug)}" data-author="${escapeHtml(hit.author)}" role="button" tabindex="0">
+      ${icon}
       <div class="modrinth-body">
         <div class="modrinth-title-row">
-          <h3 class="modrinth-title" title="${hit.title}">${hit.title}</h3>
+          <h3 class="modrinth-title" title="${escapeHtml(hit.title)}">${escapeHtml(hit.title)}</h3>
         </div>
-        <div class="modrinth-author">by ${hit.author}</div>
-        <p class="modrinth-desc">${hit.description}</p>
+        <div class="modrinth-author">by ${escapeHtml(hit.author)}</div>
+        <p class="modrinth-desc">${escapeHtml(hit.description || "")}</p>
         <div class="modrinth-stats">
           <span><strong>${Modrinth.formatDownloads(hit.downloads)}</strong> downloads</span>
           <span><strong>${Modrinth.formatDownloads(hit.follows)}</strong> followers</span>
         </div>
         <div class="modrinth-actions">
-          <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" data-install="${hit.project_id}" data-slug="${hit.slug}">
+          <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" ${installAttr}="${escapeHtml(hit.project_id)}" data-slug="${escapeHtml(hit.slug)}">
             ${installed ? "Installed" : "Install"}
           </button>
-          <button type="button" class="btn-mod" data-view-mod="${escapeHtml(hit.slug)}" data-project-id="${hit.project_id}" data-author="${escapeHtml(hit.author)}">View</button>
+          <button type="button" class="btn-mod" data-view-mod="${escapeHtml(hit.slug)}" data-project-id="${escapeHtml(hit.project_id)}" data-author="${escapeHtml(hit.author)}">View</button>
         </div>
       </div>
     </article>`;
+}
+
+function renderModrinthCard(hit) {
+  return renderProjectCard(hit, "mod", "data-install");
 }
 
 function renderModrinthSkeletons(count = 6) {
@@ -1002,6 +2212,7 @@ async function fetchModrinthMods() {
       grid.innerHTML = '<div class="modrinth-empty">No mods found. Try a different search or filter.</div>';
     } else {
       grid.innerHTML = data.hits.map(renderModrinthCard).join("");
+      initModrinthCardColors(grid);
     }
 
     if (meta) {
@@ -1020,27 +2231,29 @@ async function fetchModrinthMods() {
 }
 
 async function handleModInstall(projectId, slug, btn) {
-  if (isModInstalled(projectId)) {
-    removeInstalledMod(projectId);
-    syncInstallUI(projectId, false);
-    return;
-  }
-
   btn.disabled = true;
-  btn.textContent = "Installing…";
+  btn.textContent = isModInstalled(projectId) ? "Removing..." : "Installing...";
 
   try {
-    const version = await Modrinth.getCompatibleVersion(projectId, modrinthState.loader, modrinthState.version);
-    if (!version) throw new Error("No compatible version found");
-
-    setInstalledMod(projectId, {
-      slug,
-      title: version.name,
-      versionId: version.id,
-      versionNumber: version.version_number,
-      installedAt: Date.now(),
+    const selected = requireSelectedInstance();
+    if (isModInstalled(projectId)) {
+      const result = await window.electronAPI.removeInstanceProject({
+        instanceId: selected.id,
+        projectId,
+        projectType: "mod",
+      });
+      if (!result?.success) throw new Error(result?.error || "Remove failed");
+      await refreshInstances();
+      syncInstallUI(projectId, false);
+      return;
+    }
+    const result = await window.electronAPI.installInstanceProject({
+      instanceId: selected.id,
+      projectId,
+      projectType: "mod",
     });
-
+    if (!result?.success) throw new Error(result?.error || "Install failed");
+    await refreshInstances();
     syncInstallUI(projectId, true);
   } catch (err) {
     document.querySelectorAll(`[data-install="${projectId}"]`).forEach((installBtn) => {
@@ -1080,7 +2293,27 @@ function renderModDetailContent(project, { author } = {}) {
   const content = document.getElementById("mod-detail-content");
   if (!content) return;
 
-  const installed = isModInstalled(project.id);
+  const type = project.project_type === "modpack"
+    ? "modpack"
+    : project.project_type === "resourcepack"
+      ? "resourcepack"
+      : project.project_type === "shader"
+        ? "shader"
+        : "mod";
+  const installed = type === "modpack"
+    ? isModpackInstalled(project.id)
+    : type === "resourcepack"
+      ? isResourcePackInstalled(project.id)
+      : type === "shader"
+        ? isShaderInstalled(project.id)
+        : isModInstalled(project.id);
+  const installAttr = type === "modpack"
+    ? `data-install-pack="${project.id}"`
+    : type === "resourcepack"
+      ? `data-install-resource="${project.id}"`
+      : type === "shader"
+        ? `data-install-shader="${project.id}"`
+        : `data-install="${project.id}"`;
   const displayAuthor = author || "Unknown";
   const loaders = project.loaders || [];
   const categories = [...(project.categories || []), ...(project.additional_categories || [])];
@@ -1105,11 +2338,11 @@ function renderModDetailContent(project, { author } = {}) {
     ${categories.length ? `<div class="mod-detail-section"><h3>Categories</h3><div class="mod-detail-tags">${renderTagList(categories)}</div></div>` : ""}
     ${gameVersions.length ? `<div class="mod-detail-section"><h3>Game versions</h3><div class="mod-detail-tags">${renderTagList(gameVersions, 12)}</div></div>` : ""}
     <div class="mod-detail-actions">
-      <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" data-install="${project.id}" data-slug="${escapeHtml(project.slug)}">
+      <button type="button" class="btn-mod ${installed ? "installed" : "primary"}" ${installAttr} data-slug="${escapeHtml(project.slug)}">
         ${installed ? "Installed" : "Install"}
       </button>
     </div>
-    <a class="mod-detail-external" href="${Modrinth.projectUrl(project.slug)}" target="_blank" rel="noopener">View on Modrinth ↗</a>`;
+    <a class="mod-detail-external" href="${Modrinth.projectUrl(project.slug, project.project_type)}" target="_blank" rel="noopener">View on Modrinth ↗</a>`;
 }
 
 function openModDetail(slug, { author } = {}) {
@@ -1144,6 +2377,24 @@ function initModDetailPanel() {
   overlay.addEventListener("click", (e) => {
     if (e.target.closest("[data-mod-detail-close]")) {
       closeModDetail();
+      return;
+    }
+
+    const packBtn = e.target.closest("[data-install-pack]");
+    if (packBtn) {
+      handleModpackInstall(packBtn.dataset.installPack, packBtn.dataset.slug, packBtn);
+      return;
+    }
+
+    const resourceBtn = e.target.closest("[data-install-resource]");
+    if (resourceBtn) {
+      handleResourcePackInstall(resourceBtn.dataset.installResource, resourceBtn.dataset.slug, resourceBtn);
+      return;
+    }
+
+    const shaderBtn = e.target.closest("[data-install-shader]");
+    if (shaderBtn) {
+      handleShaderInstall(shaderBtn.dataset.installShader, shaderBtn.dataset.slug, shaderBtn);
       return;
     }
 
@@ -1192,35 +2443,878 @@ function initModrinth() {
   grid.addEventListener("click", (e) => {
     const installBtn = e.target.closest("[data-install]");
     if (installBtn) {
+      e.stopPropagation();
       handleModInstall(installBtn.dataset.install, installBtn.dataset.slug, installBtn);
       return;
     }
 
-    const viewBtn = e.target.closest("[data-view-mod]");
-    if (viewBtn) {
-      openModDetail(viewBtn.dataset.viewMod, { author: viewBtn.dataset.author });
+    const viewTarget = e.target.closest("[data-view-mod]");
+    if (viewTarget) {
+      openModDetail(viewTarget.dataset.viewMod, { author: viewTarget.dataset.author });
     }
+  });
+
+  grid.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const card = e.target.closest(".modrinth-card[data-view-mod]");
+    if (!card || e.target.closest("button")) return;
+    e.preventDefault();
+    openModDetail(card.dataset.viewMod, { author: card.dataset.author });
   });
 }
 
 function updateActiveModCount() {
-  // Reserved for future dashboard use; installed count lives in localStorage.
+  const instance = getSelectedInstance();
+  if (!instance) return;
+  const meta = document.getElementById("library-meta");
+  if (!meta) return;
+  const count = instance.totalInstalledContent || 0;
+  meta.textContent = `${instanceState.items.length} instance${instanceState.items.length === 1 ? "" : "s"} · ${count} item${count === 1 ? "" : "s"} installed in ${instance.name}`;
 }
 
-function updateHeroGreeting(state) {
-  const nameEl = document.getElementById("hero-greeting-name");
-  if (!nameEl) return;
+function renderModpackCard(hit) {
+  return renderProjectCard(hit, "modpack", "data-install-pack");
+}
 
+function renderModpackPagination() {
+  const pagination = document.getElementById("modpack-pagination");
+  if (!pagination) return;
+
+  const page = Math.floor(modpackState.offset / MODRINTH_PAGE_SIZE) + 1;
+  const totalPages = Math.max(1, Math.ceil(modpackState.totalHits / MODRINTH_PAGE_SIZE));
+
+  pagination.innerHTML = `
+    <button type="button" id="modpack-prev" ${modpackState.offset === 0 ? "disabled" : ""}>Previous</button>
+    <span>Page ${page} of ${totalPages}</span>
+    <button type="button" id="modpack-next" ${page >= totalPages ? "disabled" : ""}>Next</button>`;
+
+  document.getElementById("modpack-prev")?.addEventListener("click", () => {
+    modpackState.offset = Math.max(0, modpackState.offset - MODRINTH_PAGE_SIZE);
+    fetchModrinthModpacks();
+  });
+
+  document.getElementById("modpack-next")?.addEventListener("click", () => {
+    modpackState.offset += MODRINTH_PAGE_SIZE;
+    fetchModrinthModpacks();
+  });
+}
+
+async function fetchModrinthModpacks() {
+  if (modpackState.loading) return;
+
+  const grid = document.getElementById("modpack-grid");
+  const meta = document.getElementById("modpack-meta");
+  if (!grid) return;
+
+  modpackState.loading = true;
+  grid.innerHTML = renderModrinthSkeletons();
+  if (meta) meta.textContent = "Loading modpacks from Modrinth…";
+
+  try {
+    const data = await Modrinth.search({
+      query: modpackState.query,
+      loader: modpackState.loader,
+      version: modrinthState.version,
+      index: modpackState.index,
+      offset: modpackState.offset,
+      limit: MODRINTH_PAGE_SIZE,
+      projectType: "modpack",
+    });
+
+    modpackState.totalHits = data.total_hits;
+    modpackState.loaded = true;
+
+    if (!data.hits.length) {
+      grid.innerHTML = '<div class="modrinth-empty">No modpacks found. Try a different search or filter.</div>';
+    } else {
+      grid.innerHTML = data.hits.map(renderModpackCard).join("");
+      initModrinthCardColors(grid);
+    }
+
+    if (meta) {
+      meta.textContent = `${data.total_hits.toLocaleString()} modpacks · ${modpackState.loader} · Minecraft ${modrinthState.version}`;
+    }
+
+    renderModpackPagination();
+  } catch (err) {
+    grid.innerHTML = `<div class="modrinth-error">Failed to load modpacks: ${escapeHtml(err.message)}</div>`;
+    if (meta) meta.textContent = "";
+    const pagination = document.getElementById("modpack-pagination");
+    if (pagination) pagination.innerHTML = "";
+  } finally {
+    modpackState.loading = false;
+  }
+}
+
+function syncModpackInstallUI(projectId, installed) {
+  document.querySelectorAll(`[data-install-pack="${projectId}"]`).forEach((btn) => {
+    btn.classList.toggle("installed", installed);
+    btn.classList.toggle("primary", !installed);
+    btn.textContent = installed ? "Installed" : "Install";
+  });
+  document.querySelectorAll(`.modrinth-card[data-project-id="${projectId}"]`).forEach((card) => {
+    card.classList.toggle("installed", installed);
+  });
+}
+
+async function handleModpackInstall(projectId, slug, btn) {
+  if (isModpackInstalled(projectId)) return;
+  btn.disabled = true;
+  btn.textContent = isModpackInstalled(projectId) ? "Installed" : "Installing...";
+
+  try {
+    const result = await window.electronAPI.installModpackInstance({
+      projectId,
+      loader: modpackState.loader,
+      gameVersion: modrinthState.version,
+    });
+    if (!result?.success) throw new Error(result?.error || "Modpack install failed");
+    instanceState.selectedId = result.instance?.id || instanceState.selectedId;
+    await refreshInstances({ preserveSelection: true });
+    syncModpackInstallUI(projectId, true);
+  } catch (err) {
+    document.querySelectorAll(`[data-install-pack="${projectId}"]`).forEach((installBtn) => {
+      installBtn.textContent = "Failed";
+      setTimeout(() => {
+        installBtn.classList.add("primary");
+        installBtn.classList.remove("installed");
+        installBtn.textContent = "Install";
+      }, 2000);
+    });
+    console.error("Modpack install failed:", err);
+  } finally {
+    document.querySelectorAll(`[data-install-pack="${projectId}"]`).forEach((installBtn) => {
+      installBtn.disabled = false;
+    });
+  }
+}
+
+function initModpacks() {
+  const grid = document.getElementById("modpack-grid");
+  const searchInput = document.getElementById("modpack-search");
+  const loaderSelect = document.getElementById("modpack-loader");
+  const sortSelect = document.getElementById("modpack-sort");
+  if (!grid) return;
+
+  if (loaderSelect) loaderSelect.value = modpackState.loader;
+
+  let searchDebounce;
+  searchInput?.addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      modpackState.query = searchInput.value;
+      modpackState.offset = 0;
+      fetchModrinthModpacks();
+    }, 350);
+  });
+
+  loaderSelect?.addEventListener("change", () => {
+    modpackState.loader = loaderSelect.value;
+    modpackState.offset = 0;
+    fetchModrinthModpacks();
+  });
+
+  sortSelect?.addEventListener("change", () => {
+    modpackState.index = sortSelect.value;
+    modpackState.offset = 0;
+    fetchModrinthModpacks();
+  });
+
+  grid.addEventListener("click", (e) => {
+    const installBtn = e.target.closest("[data-install-pack]");
+    if (installBtn) {
+      e.stopPropagation();
+      handleModpackInstall(installBtn.dataset.installPack, installBtn.dataset.slug, installBtn);
+      return;
+    }
+
+    const viewTarget = e.target.closest("[data-view-mod]");
+    if (viewTarget) {
+      openModDetail(viewTarget.dataset.viewMod, { author: viewTarget.dataset.author });
+    }
+  });
+
+  grid.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const card = e.target.closest(".modrinth-card[data-view-mod]");
+    if (!card || e.target.closest("button")) return;
+    e.preventDefault();
+    openModDetail(card.dataset.viewMod, { author: card.dataset.author });
+  });
+}
+
+function syncResourcePackInstallUI(projectId, installed) {
+  document.querySelectorAll(`[data-install-resource="${projectId}"]`).forEach((btn) => {
+    setInstallButtonState(btn, installed);
+  });
+  document.querySelectorAll(`.modrinth-card[data-project-id="${projectId}"]`).forEach((card) => {
+    card.classList.toggle("installed", installed);
+  });
+}
+
+async function handleResourcePackInstall(projectId, slug, btn) {
+  btn.disabled = true;
+  btn.textContent = isResourcePackInstalled(projectId) ? "Removing..." : "Installing...";
+  try {
+    const selected = requireSelectedInstance();
+    if (isResourcePackInstalled(projectId)) {
+      const result = await window.electronAPI.removeInstanceProject({
+        instanceId: selected.id,
+        projectId,
+        projectType: "resourcepack",
+      });
+      if (!result?.success) throw new Error(result?.error || "Remove failed");
+      await refreshInstances();
+      syncResourcePackInstallUI(projectId, false);
+      return;
+    }
+    const result = await window.electronAPI.installInstanceProject({
+      instanceId: selected.id,
+      projectId,
+      projectType: "resourcepack",
+    });
+    if (!result?.success) throw new Error(result?.error || "Install failed");
+    await refreshInstances();
+    syncResourcePackInstallUI(projectId, true);
+  } catch (err) {
+    btn.textContent = "Failed";
+    setTimeout(() => setInstallButtonState(btn, false), 2000);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderResourcePackCard(hit) {
+  return renderProjectCard(hit, "resourcepack", "data-install-resource");
+}
+
+function syncShaderInstallUI(projectId, installed) {
+  document.querySelectorAll(`[data-install-shader="${projectId}"]`).forEach((btn) => {
+    setInstallButtonState(btn, installed);
+  });
+  document.querySelectorAll(`.modrinth-card[data-project-id="${projectId}"]`).forEach((card) => {
+    card.classList.toggle("installed", installed);
+  });
+}
+
+async function handleShaderInstall(projectId, slug, btn) {
+  btn.disabled = true;
+  btn.textContent = isShaderInstalled(projectId) ? "Removing..." : "Installing...";
+  try {
+    const selected = requireSelectedInstance();
+    if (isShaderInstalled(projectId)) {
+      const result = await window.electronAPI.removeInstanceProject({
+        instanceId: selected.id,
+        projectId,
+        projectType: "shader",
+      });
+      if (!result?.success) throw new Error(result?.error || "Remove failed");
+      await refreshInstances();
+      syncShaderInstallUI(projectId, false);
+      return;
+    }
+    const result = await window.electronAPI.installInstanceProject({
+      instanceId: selected.id,
+      projectId,
+      projectType: "shader",
+    });
+    if (!result?.success) throw new Error(result?.error || "Install failed");
+    await refreshInstances();
+    syncShaderInstallUI(projectId, true);
+  } catch (err) {
+    btn.textContent = "Failed";
+    setTimeout(() => setInstallButtonState(btn, false), 2000);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderShaderCard(hit) {
+  return renderProjectCard(hit, "shader", "data-install-shader");
+}
+
+function renderPagedContentPagination(elementId, state, onChange) {
+  const pagination = document.getElementById(elementId);
+  if (!pagination) return;
+  const page = Math.floor(state.offset / MODRINTH_PAGE_SIZE) + 1;
+  const totalPages = Math.max(1, Math.ceil(state.totalHits / MODRINTH_PAGE_SIZE));
+  pagination.innerHTML = `
+    <button type="button" data-page-nav="prev" ${state.offset === 0 ? "disabled" : ""}>Previous</button>
+    <span>Page ${page} of ${totalPages}</span>
+    <button type="button" data-page-nav="next" ${page >= totalPages ? "disabled" : ""}>Next</button>`;
+  pagination.querySelector('[data-page-nav="prev"]')?.addEventListener("click", () => {
+    state.offset = Math.max(0, state.offset - MODRINTH_PAGE_SIZE);
+    onChange();
+  });
+  pagination.querySelector('[data-page-nav="next"]')?.addEventListener("click", () => {
+    state.offset += MODRINTH_PAGE_SIZE;
+    onChange();
+  });
+}
+
+async function fetchResourcePacks() {
+  if (resourcePackState.loading) return;
+  const grid = document.getElementById("resourcepack-grid");
+  const meta = document.getElementById("resourcepack-meta");
+  if (!grid) return;
+  resourcePackState.loading = true;
+  grid.innerHTML = renderModrinthSkeletons();
+  if (meta) meta.textContent = "Loading resource packs from Modrinth...";
+  try {
+    const data = await Modrinth.search({
+      query: resourcePackState.query,
+      version: modrinthState.version,
+      index: resourcePackState.index,
+      offset: resourcePackState.offset,
+      limit: MODRINTH_PAGE_SIZE,
+      projectType: "resourcepack",
+    });
+    resourcePackState.totalHits = data.total_hits;
+    resourcePackState.loaded = true;
+    grid.innerHTML = data.hits.length
+      ? data.hits.map(renderResourcePackCard).join("")
+      : '<div class="modrinth-empty">No resource packs found.</div>';
+    initModrinthCardColors(grid);
+    if (meta) meta.textContent = `${data.total_hits.toLocaleString()} resource packs · Minecraft ${modrinthState.version}`;
+    renderPagedContentPagination("resourcepack-pagination", resourcePackState, fetchResourcePacks);
+  } catch (err) {
+    grid.innerHTML = `<div class="modrinth-error">Failed to load resource packs: ${escapeHtml(err.message)}</div>`;
+    if (meta) meta.textContent = "";
+  } finally {
+    resourcePackState.loading = false;
+  }
+}
+
+function initResourcePacks() {
+  const grid = document.getElementById("resourcepack-grid");
+  const searchInput = document.getElementById("resourcepack-search");
+  const sortSelect = document.getElementById("resourcepack-sort");
+  if (!grid) return;
+  let searchDebounce;
+  searchInput?.addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      resourcePackState.query = searchInput.value;
+      resourcePackState.offset = 0;
+      fetchResourcePacks();
+    }, 350);
+  });
+  sortSelect?.addEventListener("change", () => {
+    resourcePackState.index = sortSelect.value;
+    resourcePackState.offset = 0;
+    fetchResourcePacks();
+  });
+  grid.addEventListener("click", (e) => {
+    const installBtn = e.target.closest("[data-install-resource]");
+    if (installBtn) {
+      e.stopPropagation();
+      handleResourcePackInstall(installBtn.dataset.installResource, installBtn.dataset.slug, installBtn);
+      return;
+    }
+    const viewTarget = e.target.closest("[data-view-mod]");
+    if (viewTarget) openModDetail(viewTarget.dataset.viewMod, { author: viewTarget.dataset.author });
+  });
+}
+
+async function fetchShaders() {
+  if (shaderState.loading) return;
+  const grid = document.getElementById("shader-grid");
+  const meta = document.getElementById("shader-meta");
+  if (!grid) return;
+  shaderState.loading = true;
+  grid.innerHTML = renderModrinthSkeletons();
+  if (meta) meta.textContent = "Loading shaders from Modrinth...";
+  try {
+    const data = await Modrinth.search({
+      query: shaderState.query,
+      loader: modrinthState.loader,
+      version: modrinthState.version,
+      index: shaderState.index,
+      offset: shaderState.offset,
+      limit: MODRINTH_PAGE_SIZE,
+      projectType: "shader",
+    });
+    shaderState.totalHits = data.total_hits;
+    shaderState.loaded = true;
+    grid.innerHTML = data.hits.length
+      ? data.hits.map(renderShaderCard).join("")
+      : '<div class="modrinth-empty">No shaders found.</div>';
+    initModrinthCardColors(grid);
+    if (meta) meta.textContent = `${data.total_hits.toLocaleString()} shaders · Minecraft ${modrinthState.version}`;
+    renderPagedContentPagination("shader-pagination", shaderState, fetchShaders);
+  } catch (err) {
+    grid.innerHTML = `<div class="modrinth-error">Failed to load shaders: ${escapeHtml(err.message)}</div>`;
+    if (meta) meta.textContent = "";
+  } finally {
+    shaderState.loading = false;
+  }
+}
+
+function initShaders() {
+  const grid = document.getElementById("shader-grid");
+  const searchInput = document.getElementById("shader-search");
+  const sortSelect = document.getElementById("shader-sort");
+  if (!grid) return;
+  let searchDebounce;
+  searchInput?.addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      shaderState.query = searchInput.value;
+      shaderState.offset = 0;
+      fetchShaders();
+    }, 350);
+  });
+  sortSelect?.addEventListener("change", () => {
+    shaderState.index = sortSelect.value;
+    shaderState.offset = 0;
+    fetchShaders();
+  });
+  grid.addEventListener("click", (e) => {
+    const installBtn = e.target.closest("[data-install-shader]");
+    if (installBtn) {
+      e.stopPropagation();
+      handleShaderInstall(installBtn.dataset.installShader, installBtn.dataset.slug, installBtn);
+      return;
+    }
+    const viewTarget = e.target.closest("[data-view-mod]");
+    if (viewTarget) openModDetail(viewTarget.dataset.viewMod, { author: viewTarget.dataset.author });
+  });
+}
+
+const BG_THEMES = [
+  { id: "starfield", label: "Starfield" },
+  { id: "nebula", label: "Nebula" },
+  { id: "aurora", label: "Aurora" },
+  { id: "void", label: "Deep Void" },
+  { id: "ember", label: "Ember" },
+  { id: "hyperspace", label: "Hyperspace" },
+];
+
+const HERO_GREETINGS = [
+  { before: "Welcome aboard,", after: "", theme: "welcome" },
+  { before: "Ready to get started,", after: "?", theme: "launch" },
+  { before: "Back in orbit,", after: "", theme: "orbit" },
+  { before: "Systems online,", after: "", theme: "cyber" },
+  { before: "Good to see you,", after: "", theme: "warm" },
+  { before: "Launch when ready,", after: "", theme: "launch" },
+  { before: "Clear skies ahead,", after: "", theme: "sky" },
+  { before: "Suit up,", after: "", theme: "suit" },
+  { before: "Another orbit awaits,", after: "", theme: "orbit" },
+  { before: "Welcome home,", after: "", theme: "welcome" },
+  { before: "The void is calling,", after: "", theme: "void" },
+  { before: "All set,", after: "?", theme: "play" },
+  { before: "Time to play,", after: "", theme: "play" },
+  { before: "Mission standing by,", after: "", theme: "cyber" },
+  { before: "Let's make some noise,", after: "", theme: "ember" },
+];
+
+let lastHeroGreetingIndex = -1;
+
+function getHeroDisplayName(state = currentAuthState) {
   const loggedIn = Boolean(state?.isLoggedIn && state?.profile);
-  nameEl.textContent = loggedIn ? state.profile.username : "Guest";
+  return loggedIn ? state.profile.username : "Guest";
+}
+
+function pickHeroGreetingIndex() {
+  if (HERO_GREETINGS.length <= 1) return 0;
+  let next = Math.floor(Math.random() * HERO_GREETINGS.length);
+  if (next === lastHeroGreetingIndex) {
+    next = (next + 1) % HERO_GREETINGS.length;
+  }
+  lastHeroGreetingIndex = next;
+  return next;
+}
+
+/**
+ * @param {{ rotate?: boolean, state?: object }} [options]
+ */
+function updateHeroGreeting(options = {}) {
+  const rotate = options.rotate !== false;
+  const state = options.state || currentAuthState;
+  const textEl = document.getElementById("hero-greeting-text");
+  const nameEl = document.getElementById("hero-greeting-name");
+  const suffixEl = document.getElementById("hero-greeting-suffix");
+  const greetingEl = document.getElementById("hero-greeting");
+  if (!textEl || !nameEl || !suffixEl) return;
+
+  if (rotate || lastHeroGreetingIndex < 0) {
+    pickHeroGreetingIndex();
+    greetingEl?.classList.remove("is-swapping");
+    // Retrigger CSS fade if available
+    void greetingEl?.offsetWidth;
+    greetingEl?.classList.add("is-swapping");
+  }
+
+  const line = HERO_GREETINGS[Math.max(0, lastHeroGreetingIndex)] || HERO_GREETINGS[0];
+  if (document.body.classList.contains("meme-mode")) {
+    textEl.textContent = "wow. welcome aboard, ";
+    nameEl.textContent = "guests";
+    suffixEl.textContent = ". very play. much block.";
+    if (greetingEl) greetingEl.dataset.theme = "meme";
+    return;
+  }
+  textEl.textContent = `${line.before} `;
+  nameEl.textContent = getHeroDisplayName(state);
+  suffixEl.textContent = line.after || "";
+  const homeName = document.getElementById("home-player-name");
+  if (homeName && !document.body.classList.contains("meme-mode")) {
+    homeName.textContent = getHeroDisplayName(state);
+  }
+  if (greetingEl) {
+    greetingEl.dataset.theme = line.theme || "welcome";
+  }
+}
+
+function updateHeroGreetingNameOnly(state = currentAuthState) {
+  const nameEl = document.getElementById("hero-greeting-name");
+  const homeName = document.getElementById("home-player-name");
+  const name = document.body.classList.contains("meme-mode") ? "guests" : getHeroDisplayName(state);
+  if (nameEl) nameEl.textContent = name;
+  if (homeName) homeName.textContent = document.body.classList.contains("meme-mode") ? "guests" : getHeroDisplayName(state);
+  refreshHomePlayer(state?.profile || null, getHeroDisplayName(state));
+}
+
+const MEME_MODE_KEY = "spaceclient-meme-mode";
+
+function setPlayButtonLabel(btn, normalLabel = "Launch") {
+  if (!btn) return;
+  btn.dataset.normalLabel = normalLabel;
+  let label = normalLabel;
+  if (document.body.classList.contains("meme-mode")) {
+    if (/launching/i.test(normalLabel)) label = "LUNCHING GAEM… 🚀";
+    else if (/in game/i.test(normalLabel)) label = "IN GAEM 🎮";
+    else label = "LUNCH GAEM 🚀";
+  }
+  let labelEl = btn.querySelector(".btn-play-label");
+  if (!labelEl) {
+    btn.replaceChildren();
+    labelEl = document.createElement("span");
+    labelEl.className = "btn-play-label";
+    labelEl.id = "btn-play-label";
+    btn.appendChild(labelEl);
+  }
+  labelEl.textContent = label;
+}
+
+function initMemeMode() {
+  const toggle = document.getElementById("meme-mode-toggle");
+  const doge = document.getElementById("meme-doge");
+  const greeting = document.getElementById("hero-greeting");
+  const playBtn = document.querySelector(".btn-play");
+  if (!toggle) return;
+
+  let greetingClicks = 0;
+  let clickResetTimer = 0;
+  const konami = [
+    "ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown",
+    "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight",
+    "b", "a",
+  ];
+  let konamiIndex = 0;
+
+  const apply = (enabled, { persist = true } = {}) => {
+    document.body.classList.toggle("meme-mode", enabled);
+    toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    toggle.title = enabled ? "Disable Meme Mode" : "Meme Mode";
+    if (doge) {
+      doge.hidden = !enabled;
+      doge.setAttribute("aria-hidden", enabled ? "false" : "true");
+    }
+    if (persist) localStorage.setItem(MEME_MODE_KEY, enabled ? "1" : "0");
+    updateHeroGreeting({ rotate: false });
+    setPlayButtonLabel(playBtn, playBtn?.dataset.normalLabel || "Launch");
+  };
+
+  const toggleMode = () => apply(!document.body.classList.contains("meme-mode"));
+
+  toggle.addEventListener("click", toggleMode);
+  greeting?.addEventListener("click", () => {
+    greetingClicks += 1;
+    clearTimeout(clickResetTimer);
+    if (greetingClicks >= 5) {
+      greetingClicks = 0;
+      toggleMode();
+      return;
+    }
+    clickResetTimer = window.setTimeout(() => {
+      greetingClicks = 0;
+    }, 1600);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (key === konami[konamiIndex]) {
+      konamiIndex += 1;
+      if (konamiIndex === konami.length) {
+        konamiIndex = 0;
+        toggleMode();
+      }
+    } else {
+      konamiIndex = key === konami[0] ? 1 : 0;
+    }
+  });
+
+  apply(localStorage.getItem(MEME_MODE_KEY) === "1", { persist: false });
+}
+
+function getPerfPack() {
+  const stored = String(localStorage.getItem(PERF_PACK_KEY) || "none").toLowerCase();
+  if (stored === "weak" || stored === "balanced" || stored === "strong") return stored;
+  return "none";
+}
+
+function applyPerfPack(pack) {
+  const id = ["none", "weak", "balanced", "strong"].includes(String(pack)) ? String(pack) : "none";
+  localStorage.setItem(PERF_PACK_KEY, id);
+  document.querySelectorAll("[data-perf-pack]").forEach((btn) => {
+    const active = btn.dataset.perfPack === id;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-checked", active ? "true" : "false");
+  });
+  return id;
 }
 
 function navigateToView(viewId) {
-  const navBtn = document.querySelector(`.nav-btn[data-view="${viewId}"]`);
-  const views = document.querySelectorAll(".view");
-  if (!navBtn) return;
-  document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.toggle("active", b === navBtn));
-  views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
+  // Legacy deep links — Content is modpacks; instance add-content opens mods
+  if (viewId === "mods" || viewId === "resourcepacks" || viewId === "shaders") {
+    setContentMode("instance", { tab: viewId === "mods" ? "mods" : viewId });
+    viewId = "content";
+  }
+  if (viewId === "modpacks") {
+    setContentMode("modpacks");
+    viewId = "content";
+  }
+  if (viewId === "presets") viewId = "create";
+  if (viewId === "cosmetics") {
+    setStoreTab("cosmetics");
+    viewId = "store";
+  }
+
+  if (modrinthState.edition === "bedrock" && JAVA_ONLY_VIEWS.has(viewId)) {
+    viewId = "home";
+  }
+
+  const target = document.getElementById(`view-${viewId}`);
+  if (!target) return;
+
+  const navHighlight =
+    viewId === "spaceplus" || viewId === "settings" ? "account" : viewId;
+  const navBtn = document.querySelector(`.nav-btn[data-view="${navHighlight}"]`);
+  // Allow secondary views (settings / spaceplus) even when only Account is in the nav
+  if (navBtn?.hidden) return;
+  if (
+    modrinthState.edition === "bedrock" &&
+    navBtn?.hasAttribute("data-java-only") &&
+    viewId !== "home"
+  ) {
+    return;
+  }
+
+  document.querySelectorAll(".nav-btn[data-view]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.view === navHighlight);
+  });
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v === target));
+  document.body.classList.toggle("home-active", viewId === "home");
+
+  if (viewId === "home") {
+    updateHeroGreeting({ rotate: true });
+    refreshProfileViews();
+    initCherryPetals();
+    setHomeTrailerPlaying(true);
+  } else {
+    setHomeTrailerPlaying(false);
+  }
+  if (viewId === "content") {
+    if (contentMode !== "instance") setContentMode("modpacks");
+    else syncContentModeChrome();
+    ensureContentTabLoaded();
+  }
+  if (viewId === "library") {
+    renderLibrary();
+  }
+  if (viewId === "create") {
+    syncCreateInstanceForm();
+  }
+  if (viewId === "skin" || viewId === "account") {
+    refreshProfileViews();
+  }
+  if (viewId === "skin") {
+    void refreshSkinLibrary();
+  }
+  if (viewId === "friends") {
+    void refreshFriendsView();
+  }
+  if (viewId === "thanks") {
+    renderThanksGrid();
+  }
+  if (viewId === "host") {
+    void refreshHostView();
+  }
+  if (viewId === "store") {
+    setStoreTab(storeTab);
+  }
+}
+
+let storeTab = "cosmic";
+
+function setStoreTab(tabId) {
+  const next = tabId === "credits" ? "credits" : "cosmic";
+  storeTab = next;
+
+  document.querySelectorAll("[data-store-tab]").forEach((btn) => {
+    const active = btn.dataset.storeTab === next;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+
+  const creditsPanel = document.getElementById("store-panel-credits");
+  const cosmicPanel = document.getElementById("store-panel-cosmic");
+  if (creditsPanel) {
+    const show = next === "credits";
+    creditsPanel.classList.toggle("active", show);
+    creditsPanel.hidden = !show;
+  }
+  if (cosmicPanel) {
+    const show = next === "cosmic";
+    cosmicPanel.classList.toggle("active", show);
+    cosmicPanel.hidden = !show;
+    if (show && typeof window.refreshCosmicShop === "function") {
+      window.refreshCosmicShop();
+    }
+  }
+}
+
+function initStoreTabs() {
+  document.querySelectorAll("[data-store-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => setStoreTab(btn.dataset.storeTab));
+  });
+  setStoreTab(storeTab);
+}
+
+let contentTab = "modpacks";
+/** @type {"modpacks" | "instance"} */
+let contentMode = "modpacks";
+
+function syncContentModeChrome() {
+  const heading = document.getElementById("content-heading");
+  const sub = document.getElementById("content-subheading");
+  const tabs = document.getElementById("content-tabs");
+  const target = document.getElementById("content-instance-target");
+  const banner = document.getElementById("content-mode-banner");
+  const bannerText = document.getElementById("content-mode-banner-text");
+  const selected = getSelectedInstance();
+  const isInstance = contentMode === "instance";
+
+  if (heading) heading.textContent = isInstance ? "Add Content" : "Modpacks";
+  if (sub) {
+    sub.textContent = isInstance
+      ? "Install mods, resource packs, and shaders into the selected instance."
+      : "Install Modrinth modpacks as ready-to-play instances. Add mods from Library → Add Content.";
+  }
+  if (tabs) tabs.hidden = !isInstance;
+  if (target) target.hidden = !isInstance;
+  if (banner) banner.hidden = !isInstance;
+  if (bannerText && selected) {
+    bannerText.innerHTML = `Adding content to <strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.loader)} · ${escapeHtml(selected.mcVersion)}`;
+  } else if (bannerText) {
+    bannerText.textContent = "Select an instance from Library to add content.";
+  }
+}
+
+function setContentMode(mode, { tab } = {}) {
+  contentMode = mode === "instance" ? "instance" : "modpacks";
+  syncContentModeChrome();
+  if (contentMode === "modpacks") {
+    setContentTab("modpacks");
+  } else {
+    setContentTab(tab || "mods");
+  }
+}
+
+function setContentTab(tabId) {
+  let next = tabId;
+  if (contentMode === "modpacks") {
+    next = "modpacks";
+  } else if (!["mods", "resourcepacks", "shaders"].includes(next)) {
+    next = "mods";
+  }
+  contentTab = next;
+
+  document.querySelectorAll("[data-content-tab]").forEach((btn) => {
+    const active = btn.dataset.contentTab === next;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+
+  const modsPanel = document.getElementById("content-panel-mods");
+  const packsPanel = document.getElementById("content-panel-modpacks");
+  const resourcePanel = document.getElementById("content-panel-resourcepacks");
+  const shaderPanel = document.getElementById("content-panel-shaders");
+  if (modsPanel) {
+    const show = next === "mods";
+    modsPanel.classList.toggle("active", show);
+    modsPanel.hidden = !show;
+  }
+  if (packsPanel) {
+    const show = next === "modpacks";
+    packsPanel.classList.toggle("active", show);
+    packsPanel.hidden = !show;
+  }
+  if (resourcePanel) {
+    const show = next === "resourcepacks";
+    resourcePanel.classList.toggle("active", show);
+    resourcePanel.hidden = !show;
+  }
+  if (shaderPanel) {
+    const show = next === "shaders";
+    shaderPanel.classList.toggle("active", show);
+    shaderPanel.hidden = !show;
+  }
+}
+
+function ensureContentTabLoaded() {
+  if (contentTab === "modpacks") {
+    if (!modpackState.loaded && !modpackState.loading) {
+      fetchModrinthModpacks();
+    }
+  } else if (contentTab === "resourcepacks") {
+    if (!resourcePackState.loaded && !resourcePackState.loading) {
+      fetchResourcePacks();
+    }
+  } else if (contentTab === "shaders") {
+    if (!shaderState.loaded && !shaderState.loading) {
+      fetchShaders();
+    }
+  } else if (!modrinthState.loaded && !modrinthState.loading) {
+    syncModrinthFiltersFromSettings();
+    fetchModrinthMods();
+  }
+}
+
+function initContentTabs() {
+  const instanceSelect = document.getElementById("content-instance-select");
+  document.querySelectorAll("[data-content-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (contentMode !== "instance") return;
+      setContentTab(btn.dataset.contentTab);
+      ensureContentTabLoaded();
+    });
+  });
+  instanceSelect?.addEventListener("change", () => {
+    if (!instanceSelect.value) return;
+    selectInstance(instanceSelect.value);
+    modrinthState.loaded = false;
+    resourcePackState.loaded = false;
+    shaderState.loaded = false;
+    syncContentModeChrome();
+    ensureContentTabLoaded();
+  });
+  document.getElementById("content-back-modpacks")?.addEventListener("click", () => {
+    setContentMode("modpacks");
+    ensureContentTabLoaded();
+  });
+  setContentMode("modpacks");
+  syncContentInstancePicker();
 }
 
 function openSpacePlusFromCosmetics() {
@@ -1233,7 +3327,7 @@ function updateTitlebarPlayer(state) {
     isLoggedIn: Boolean(state?.isLoggedIn && state?.profile),
     profile: state?.profile || null,
   };
-  updateHeroGreeting(state);
+  updateHeroGreetingNameOnly(state);
 
   const nameEl = document.getElementById("titlebar-player-name");
   const dotEl = document.getElementById("titlebar-status-dot");
@@ -1267,6 +3361,12 @@ function updateTitlebarPlayer(state) {
   if (document.getElementById("cosmetics-grid")) {
     syncCosmeticEquippedState();
     renderCosmeticsGrid();
+  }
+
+  if (loggedIn) {
+    startAvatarRefreshPoll();
+  } else {
+    stopAvatarRefreshPoll();
   }
 }
 
@@ -1330,20 +3430,48 @@ function updateMaximizeIcon(isMaximized) {
 
 function initNavigation() {
   const navBtns = document.querySelectorAll(".nav-btn[data-view]");
-  const views = document.querySelectorAll(".view");
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const viewId = btn.dataset.view;
-      navBtns.forEach((b) => b.classList.toggle("active", b === btn));
-      views.forEach((v) => v.classList.toggle("active", v.id === `view-${viewId}`));
-
-      if (viewId === "mods" && !modrinthState.loaded && !modrinthState.loading) {
-        syncModrinthFiltersFromSettings();
-        fetchModrinthMods();
-      }
+      if (btn.hidden) return;
+      if (btn.dataset.view === "content") setContentMode("modpacks");
+      navigateToView(btn.dataset.view);
     });
   });
+
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const openView = params.get("view");
+    if (openView) navigateToView(openView);
+
+    // Trailer capture mode: cycle real launcher screens for FFmpeg window grab.
+    if (params.get("capture") === "1") {
+      const tour = [
+        "home",
+        "skin",
+        "content",
+        "host",
+        "library",
+        "create",
+        "account",
+        "friends",
+        "store",
+        "settings",
+        "home",
+      ];
+      let i = 0;
+      const stepMs = Number(params.get("captureMs") || 4500);
+      const runTour = () => {
+        const view = tour[i % tour.length];
+        navigateToView(view);
+        i += 1;
+      };
+      runTour();
+      window.__spaceCaptureTour = setInterval(runTour, stepMs);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 function initCosmetics() {
   const grid = document.getElementById("cosmetics-grid");
@@ -1441,41 +3569,773 @@ function initCosmetics() {
   });
 }
 
-function initAccount() {
-  const signInBtn = document.getElementById("account-signin-btn");
-  const signOutBtnEl = document.getElementById("account-signout-btn");
-  const accountSidebar = document.querySelector(".account-sidebar");
+function normalizeSkinVariant(variant) {
+  const v = String(variant || "classic").toLowerCase();
+  return v === "slim" || v === "alex" ? "slim" : "classic";
+}
+
+let skinPreviewCacheBust = 0;
+/** @type {ReturnType<typeof setInterval>|null} */
+let avatarRefreshTimer = null;
+/** @type {object|null} */
+let skinBrowsePlayer = null;
+/** @type {{ skinId: string, name: string, variant: string }|null} */
+let skinPreviewOverride = null;
+/** @type {Map<string, object>} */
+const skinLibraryById = new Map();
+/** @type {Promise<void>|null} */
+let skinPreviewRequest = null;
+
+function bustSkinPreviewImages() {
+  skinPreviewCacheBust = Date.now();
+}
+
+function stopAvatarRefreshPoll() {
+  if (avatarRefreshTimer) {
+    clearInterval(avatarRefreshTimer);
+    avatarRefreshTimer = null;
+  }
+}
+
+function buildSkinPreviewPayload({ bodySize = 180, headSize = 96, browse = false } = {}) {
+  const profile = currentAuthState?.profile || null;
+  const payload = {
+    uuid: profile?.uuid,
+    username: profile?.username,
+    textureUrl: profile?.skinTextureUrl || null,
+    variant: profile?.skinVariant || "classic",
+    bodySize,
+    headSize,
+  };
+
+  if (skinPreviewOverride?.skinId) {
+    payload.skinId = skinPreviewOverride.skinId;
+    payload.variant = skinPreviewOverride.variant || payload.variant;
+    return payload;
+  }
+
+  if (browse && skinBrowsePlayer) {
+    payload.uuid = skinBrowsePlayer.uuidCompact || skinBrowsePlayer.uuid || null;
+    payload.username = skinBrowsePlayer.name || payload.username;
+    payload.textureUrl = skinBrowsePlayer.textureUrl || payload.textureUrl;
+    const variantEl = document.getElementById("skin-browse-variant");
+    payload.variant = variantEl?.value || skinBrowsePlayer.variant || payload.variant;
+    return payload;
+  }
+
+  return payload;
+}
+
+function setPreviewImage(img, dataUrl, alt) {
+  if (!img || !dataUrl) return;
+  if (alt) img.alt = alt;
+  if (img.src === dataUrl) {
+    img.src = "";
+  }
+  img.src = dataUrl;
+}
+
+async function fetchSkinPreviewImages(options = {}) {
   const api = window.electronAPI;
+  if (!api?.getSkinPreview) return null;
+  const payload = buildSkinPreviewPayload(options);
+  try {
+    return await api.getSkinPreview(payload);
+  } catch {
+    return null;
+  }
+}
 
-  if (!api) return;
+async function refreshSkinPreviewImages() {
+  if (skinPreviewRequest) return skinPreviewRequest;
 
-  function formatExpires(expiresAt) {
-    if (!expiresAt) return "—";
-    const date = new Date(expiresAt);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+  skinPreviewRequest = (async () => {
+    const profile = currentAuthState?.profile || null;
+    const loggedIn = Boolean(currentAuthState?.isLoggedIn && profile);
+    const name = skinPreviewOverride?.name || (loggedIn ? profile.username || "Player" : "Guest");
+
+    const [sidebarPreview, homePreview, headPreview] = await Promise.all([
+      fetchSkinPreviewImages({ bodySize: 180, headSize: 96 }),
+      fetchSkinPreviewImages({ bodySize: 280, headSize: 96 }),
+      fetchSkinPreviewImages({ headSize: 96 }),
+    ]);
+
+    const skinImg = document.getElementById("skin-preview-img");
+    const skinName = document.getElementById("skin-preview-name");
+    const skinStatus = document.getElementById("skin-preview-status");
+    const skinVariant = document.getElementById("skin-preview-variant");
+    const homeSkinImg = document.getElementById("home-player-skin");
+    const cardHead = document.getElementById("account-card-head");
+
+    if (skinImg && sidebarPreview?.bodyDataUrl) {
+      setPreviewImage(skinImg, sidebarPreview.bodyDataUrl, `${name}'s skin preview`);
+    }
+    if (homeSkinImg && homePreview?.bodyDataUrl) {
+      setPreviewImage(homeSkinImg, homePreview.bodyDataUrl, `${name}'s skin`);
+    }
+    if (cardHead && headPreview?.headDataUrl) {
+      setPreviewImage(cardHead, headPreview.headDataUrl, loggedIn ? `${name}'s player head` : "");
+    }
+    const navHead = document.getElementById("nav-account-head");
+    if (navHead && loggedIn && headPreview?.headDataUrl) {
+      navHead.hidden = false;
+      setPreviewImage(navHead, headPreview.headDataUrl, `${name}'s player head`);
+    }
+
+    if (skinName) skinName.textContent = name;
+    if (skinStatus) {
+      if (skinPreviewOverride) {
+        skinStatus.textContent = "Previewing library skin (not applied yet).";
+      } else if (loggedIn) {
+        skinStatus.textContent = "Showing your Microsoft account skin.";
+      } else {
+        skinStatus.textContent = "Sign in to manage your skin.";
+      }
+    }
+    const variant = skinPreviewOverride?.variant || sidebarPreview?.variant || profile?.skinVariant;
+    if (skinVariant) {
+      if ((loggedIn || skinPreviewOverride) && variant) {
+        skinVariant.hidden = false;
+        skinVariant.textContent = normalizeSkinVariant(variant) === "slim" ? "Model: Slim" : "Model: Classic";
+      } else {
+        skinVariant.hidden = true;
+      }
+    }
+  })();
+
+  try {
+    await skinPreviewRequest;
+  } finally {
+    skinPreviewRequest = null;
+  }
+}
+
+async function pollActiveSkinProfile() {
+  const api = window.electronAPI;
+  if (!api?.getActiveSkin || !currentAuthState?.isLoggedIn) return;
+
+  try {
+    const result = await api.getActiveSkin();
+    if (!result?.success) return;
+
+    bustSkinPreviewImages();
+    const nextProfile = {
+      ...(currentAuthState.profile || {}),
+      ...(result.profile || {}),
+    };
+    if (result.activeSkin) {
+      nextProfile.skinVariant = result.activeSkin.variant || nextProfile.skinVariant;
+      if (result.activeSkin.url) {
+        nextProfile.skinTextureUrl = String(result.activeSkin.url).replace(/^http:\/\//i, "https://");
+      }
+    }
+    currentAuthState = {
+      isLoggedIn: true,
+      profile: nextProfile,
+    };
+    void refreshProfileViews();
+    updateTitlebarPlayer(currentAuthState);
+  } catch {
+    // ignore background poll errors
+  }
+}
+
+function startAvatarRefreshPoll() {
+  stopAvatarRefreshPoll();
+  if (!currentAuthState?.isLoggedIn) return;
+  avatarRefreshTimer = setInterval(() => {
+    void pollActiveSkinProfile();
+  }, 10000);
+}
+
+async function updateBrowseBodyPreview() {
+  const body = document.getElementById("skin-browse-body");
+  if (!body || !skinBrowsePlayer) return;
+
+  const preview = await fetchSkinPreviewImages({ bodySize: 180, browse: true });
+  if (preview?.bodyDataUrl) {
+    setPreviewImage(body, preview.bodyDataUrl, `${skinBrowsePlayer.name}'s skin`);
+    return;
+  }
+
+  const bust = Date.now();
+  if (skinBrowsePlayer.textureUrl) {
+    body.src = `${skinBrowsePlayer.textureUrl}${skinBrowsePlayer.textureUrl.includes("?") ? "&" : "?"}t=${bust}`;
+    return;
+  }
+  if (skinBrowsePlayer.bodyUrl) {
+    body.src = `${skinBrowsePlayer.bodyUrl}${skinBrowsePlayer.bodyUrl.includes("?") ? "&" : "?"}t=${bust}`;
+  }
+}
+
+function refreshHomePlayer(profile, name) {
+  const nameEl = document.getElementById("home-player-name");
+  if (nameEl) nameEl.textContent = name || "Guest";
+}
+
+/** Official Minecraft animated update trailers (Village & Pillage → Tricky Trials). */
+const HOME_TRAILER_YT_IDS = [
+  "gcf9FM4TbN4", // Village & Pillage
+  "1DhWXAiNgfQ", // Nether Update
+  "0maWbr0FHKY", // Caves & Cliffs
+  "GXr5glhGkzE", // The Wild Update (frogs)
+  "NG-5L34HqOs", // Tricky Trials
+];
+const HOME_TRAILER_LOCAL = [
+  "assets/video/trailers/01-village-pillage.mp4",
+  "assets/video/trailers/02-nether-update.mp4",
+  "assets/video/trailers/03-caves-cliffs.mp4",
+  "assets/video/trailers/04-wild-update.mp4",
+  "assets/video/trailers/05-tricky-trials.mp4",
+];
+const HOME_TRAILER_FALLBACK = "assets/video/cherry-grove.mp4";
+
+function initCherryPetals() {
+  initCherryGroveVideo();
+}
+
+function setHomeTrailerPlaying(playing) {
+  const video = document.getElementById("cherry-grove-video");
+  const host = document.getElementById("home-trailer-host");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (video && !video.hidden) {
+    if (playing && !reduced) {
+      const p = video.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } else {
+      video.pause();
+    }
+  }
+  if (host && !host.hidden) {
+    const iframe = host.querySelector("iframe");
+    // YouTube postMessage play/pause — best-effort when embeds are used
+    if (iframe?.contentWindow) {
+      const func = playing && !reduced ? "playVideo" : "pauseVideo";
+      iframe.contentWindow.postMessage(
+        JSON.stringify({ event: "command", func, args: [] }),
+        "https://www.youtube-nocookie.com"
+      );
+    }
+  }
+}
+
+function probeLocalVideo(src) {
+  return new Promise((resolve) => {
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    const done = (ok) => {
+      probe.removeAttribute("src");
+      probe.load();
+      resolve(ok);
+    };
+    probe.onloadedmetadata = () => done(true);
+    probe.onerror = () => done(false);
+    probe.src = src;
+  });
+}
+
+function startLocalTrailerPlaylist(video, playlist) {
+  video.hidden = false;
+  video.muted = true;
+  video.playsInline = true;
+  video.loop = false;
+
+  let index = Math.floor(Math.random() * playlist.length);
+  const tryPlay = () => {
+    const p = video.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  };
+  const loadAt = (i) => {
+    index = ((i % playlist.length) + playlist.length) % playlist.length;
+    video.src = playlist[index];
+    tryPlay();
+  };
+
+  video.addEventListener("ended", () => loadAt(index + 1));
+  video.addEventListener("error", () => loadAt(index + 1));
+  video.addEventListener("canplay", tryPlay);
+  loadAt(index);
+}
+
+function startYoutubeTrailerPlaylist(host) {
+  const start = Math.floor(Math.random() * HOME_TRAILER_YT_IDS.length);
+  const ordered = HOME_TRAILER_YT_IDS.slice(start).concat(HOME_TRAILER_YT_IDS.slice(0, start));
+  const first = ordered[0];
+  const playlist = ordered.join(",");
+  const params = new URLSearchParams({
+    autoplay: "1",
+    mute: "1",
+    controls: "0",
+    modestbranding: "1",
+    rel: "0",
+    playsinline: "1",
+    iv_load_policy: "3",
+    disablekb: "1",
+    fs: "0",
+    loop: "1",
+    playlist,
+  });
+
+  const iframe = document.createElement("iframe");
+  iframe.className = "home-trailer-iframe";
+  iframe.title = "Minecraft update trailers";
+  iframe.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture";
+  iframe.referrerPolicy = "strict-origin-when-cross-origin";
+  iframe.setAttribute("allowfullscreen", "");
+  iframe.src = `https://www.youtube-nocookie.com/embed/${first}?${params.toString()}`;
+  host.appendChild(iframe);
+  host.hidden = false;
+}
+
+function startFallbackBiomeLoop(video) {
+  video.hidden = false;
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.src = HOME_TRAILER_FALLBACK;
+  const p = video.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
+}
+
+async function initCherryGroveVideo() {
+  const video = document.getElementById("cherry-grove-video");
+  const host = document.getElementById("home-trailer-host");
+  if (!video || video.dataset.ready === "1") return;
+  video.dataset.ready = "1";
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) {
+    startFallbackBiomeLoop(video);
+    video.pause();
+    return;
+  }
+
+  const available = [];
+  for (const src of HOME_TRAILER_LOCAL) {
+    if (await probeLocalVideo(src)) available.push(src);
+  }
+
+  if (available.length >= 1) {
+    if (host) host.hidden = true;
+    startLocalTrailerPlaylist(video, available);
+    return;
+  }
+
+  if (host) {
+    try {
+      startYoutubeTrailerPlaylist(host);
+      video.hidden = true;
+      return;
+    } catch (_) {
+      /* fall through */
+    }
+  }
+
+  startFallbackBiomeLoop(video);
+}
+
+function refreshProfileViews() {
+  const loggedIn = Boolean(currentAuthState?.isLoggedIn && currentAuthState?.profile);
+  const profile = currentAuthState?.profile || null;
+  const name = loggedIn ? profile.username || "Player" : "Guest";
+
+  refreshHomePlayer(profile, name);
+
+  const skinResetBtn = document.getElementById("skin-reset-btn");
+  if (skinResetBtn) skinResetBtn.disabled = !loggedIn;
+
+  const cardName = document.getElementById("account-card-name");
+  const cardStatus = document.getElementById("account-card-status");
+  const authBtn = document.getElementById("account-auth-btn");
+  if (cardName) cardName.textContent = name;
+  if (cardStatus) cardStatus.textContent = loggedIn ? "Signed in with Microsoft" : "Not signed in";
+  if (authBtn) authBtn.textContent = loggedIn ? "Sign out" : "Sign in with Microsoft";
+
+  void refreshSkinPreviewImages();
+}
+
+function persistSelectedInstance() {
+  if (instanceState.selectedId) {
+    localStorage.setItem(SELECTED_INSTANCE_KEY, instanceState.selectedId);
+  } else {
+    localStorage.removeItem(SELECTED_INSTANCE_KEY);
+  }
+}
+
+function syncContentInstancePicker() {
+  const select = document.getElementById("content-instance-select");
+  if (!select) return;
+  const options = instanceState.items
+    .map(
+      (instance) => `
+        <option value="${escapeHtml(instance.id)}"${instance.id === instanceState.selectedId ? " selected" : ""}>
+          ${escapeHtml(instance.name)} (${escapeHtml(instance.loader)} · ${escapeHtml(instance.mcVersion)})
+        </option>`
+    )
+    .join("");
+  select.innerHTML = options || '<option value="">Create an instance first</option>';
+  select.disabled = instanceState.items.length === 0;
+}
+
+function syncSelectedInstanceToLaunch() {
+  const selected = getSelectedInstance();
+  const versionSelect = document.getElementById("home-version");
+  const loaderSelect = document.getElementById("home-loader");
+  if (selected && versionSelect && loaderSelect) {
+    modrinthState.version = selected.mcVersion;
+    modrinthState.homeLoader = selected.loader;
+    modrinthState.loader = selected.loader === "vanilla" ? "fabric" : selected.loader;
+    modpackState.loader = selected.loader === "vanilla" ? "fabric" : selected.loader;
+    loaderSelect.value = selected.loader;
+    populateHomeVersionSelect(selected.mcVersion);
+    versionSelect.value = selected.mcVersion;
+    syncLaunchToApp();
+  }
+  syncContentInstancePicker();
+}
+
+function getBrowserPreviewInstances() {
+  const now = Date.now();
+  return [
+    {
+      id: "preview-demo-survival",
+      name: "Demo Survival",
+      mcVersion: "1.21.1",
+      loader: "fabric",
+      loaderVersion: null,
+      icon: null,
+      source: null,
+      createdAt: now - 60_000,
+      updatedAt: now,
+      path: "",
+      content: { mods: {}, resourcepacks: {}, shaderpacks: {}, modpacks: {} },
+      counts: { mods: 0, resourcepacks: 0, shaderpacks: 0, modpacks: 0 },
+      totalInstalledContent: 0,
+    },
+    {
+      id: "preview-demo-modpack",
+      name: "Fabulously Optimized",
+      mcVersion: "1.21.1",
+      loader: "fabric",
+      loaderVersion: null,
+      icon: null,
+      source: { type: "modpack", projectId: "preview", title: "Fabulously Optimized" },
+      createdAt: now - 120_000,
+      updatedAt: now - 30_000,
+      path: "",
+      content: { mods: {}, resourcepacks: {}, shaderpacks: {}, modpacks: {} },
+      counts: { mods: 0, resourcepacks: 0, shaderpacks: 0, modpacks: 0 },
+      totalInstalledContent: 0,
+    },
+  ];
+}
+
+async function refreshInstances({ preserveSelection = true } = {}) {
+  const api = window.electronAPI;
+  instanceState.loading = true;
+  let result = null;
+  if (api?.listInstances) {
+    result = await api.listInstances();
+  }
+  instanceState.loading = false;
+  instanceState.items = Array.isArray(result?.instances) ? result.instances : [];
+  // Browser / Cursor preview has no Electron IPC — seed demo cards so Library is inspectable.
+  if (!api?.listInstances && instanceState.items.length === 0) {
+    instanceState.items = getBrowserPreviewInstances();
+  }
+
+  const stored = preserveSelection ? localStorage.getItem(SELECTED_INSTANCE_KEY) : null;
+  const nextSelected =
+    instanceState.items.find((item) => item.id === instanceState.selectedId)?.id ||
+    instanceState.items.find((item) => item.id === stored)?.id ||
+    instanceState.items[0]?.id ||
+    null;
+  instanceState.selectedId = nextSelected;
+  persistSelectedInstance();
+  syncSelectedInstanceToLaunch();
+  renderLibrary();
+}
+
+function selectInstance(instanceId, { navigate = false, addContent = false } = {}) {
+  if (!instanceState.items.some((item) => item.id === instanceId)) return;
+  instanceState.selectedId = instanceId;
+  persistSelectedInstance();
+  syncSelectedInstanceToLaunch();
+  renderLibrary();
+  if (navigate || addContent) {
+    setContentMode("instance", { tab: "mods" });
+    modrinthState.loaded = false;
+    resourcePackState.loaded = false;
+    shaderState.loaded = false;
+    navigateToView("content");
+  }
+}
+
+function renderLibrary() {
+  const grid = document.getElementById("library-grid");
+  const meta = document.getElementById("library-meta");
+  if (!grid) return;
+
+  const items = [...instanceState.items].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+
+  if (!items.length) {
+    if (meta) meta.textContent = "";
+    grid.innerHTML = `
+      <div class="library-empty">
+        <h3>Your library is empty</h3>
+        <p>Create an instance or install a modpack from Content to see it here.</p>
+        <div class="library-empty-actions">
+          <button type="button" class="btn-mod primary" data-library-nav="create">Create instance</button>
+          <button type="button" class="btn-mod" data-library-nav="content">Browse Content</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (meta) {
+    const selected = getSelectedInstance();
+    meta.textContent = selected
+      ? `${items.length} instance${items.length === 1 ? "" : "s"} · selected: ${selected.name}`
+      : `${items.length} instance${items.length === 1 ? "" : "s"} in your library`;
+  }
+
+  grid.innerHTML = items
+    .map(
+      (item) => `
+    <article class="library-card${item.id === instanceState.selectedId ? " installed" : ""}" data-library-id="${escapeHtml(item.id)}">
+      <div class="library-card-icon" aria-hidden="true">${item.source?.type === "modpack" ? "▣" : "◇"}</div>
+      <div class="library-card-body">
+        <h3 class="library-card-title">${escapeHtml(item.name)}</h3>
+        <p class="library-card-sub">${escapeHtml(item.loader)} · ${escapeHtml(item.mcVersion)}</p>
+        <span class="library-card-badge">${item.source?.type === "modpack" ? "Modpack Instance" : "Instance"}</span>
+      </div>
+      <div class="library-card-actions">
+        <button type="button" class="btn-mod primary" data-library-launch="${escapeHtml(item.id)}">Launch</button>
+        <button type="button" class="btn-mod" data-library-content="${escapeHtml(item.id)}">Add Content</button>
+        <button type="button" class="btn-mod" data-library-open="${escapeHtml(item.id)}">Open Folder</button>
+        <button type="button" class="btn-mod" data-library-remove="${escapeHtml(item.id)}">Remove</button>
+      </div>
+    </article>`
+    )
+    .join("");
+  updateActiveModCount();
+}
+
+function initLibrary() {
+  const grid = document.getElementById("library-grid");
+  document.getElementById("library-create-btn")?.addEventListener("click", () => navigateToView("create"));
+
+  grid?.addEventListener("click", (e) => {
+    const navBtn = e.target.closest("[data-library-nav]");
+    if (navBtn) {
+      navigateToView(navBtn.dataset.libraryNav);
+      return;
+    }
+
+    const card = e.target.closest("[data-library-id]");
+    if (card?.dataset.libraryId) {
+      selectInstance(card.dataset.libraryId);
+    }
+
+    const launchBtn = e.target.closest("[data-library-launch]");
+    if (launchBtn) {
+      selectInstance(launchBtn.dataset.libraryLaunch);
+      document.querySelector(".btn-play")?.click();
+      return;
+    }
+
+    const contentBtn = e.target.closest("[data-library-content]");
+    if (contentBtn) {
+      selectInstance(contentBtn.dataset.libraryContent, { addContent: true });
+      return;
+    }
+
+    const openBtn = e.target.closest("[data-library-open]");
+    if (openBtn) {
+      window.electronAPI?.openInstanceFolder?.(openBtn.dataset.libraryOpen);
+      return;
+    }
+
+    const removeBtn = e.target.closest("[data-library-remove]");
+    if (!removeBtn) return;
+    window.electronAPI?.deleteInstance?.(removeBtn.dataset.libraryRemove)
+      .then(() => refreshInstances({ preserveSelection: false }))
+      .catch(() => {});
+  });
+}
+
+function syncCreateInstancePreview() {
+  const nameInput = document.getElementById("create-instance-name");
+  const versionSelect = document.getElementById("create-instance-version");
+  const loaderSelect = document.getElementById("create-instance-loader");
+  const nameEl = document.getElementById("create-preview-name");
+  const metaEl = document.getElementById("create-preview-meta");
+  const chipLoader = document.getElementById("create-preview-chip-loader");
+  const chipVersion = document.getElementById("create-preview-chip-version");
+  const noteEl = document.getElementById("create-preview-note");
+
+  const name = String(nameInput?.value || "").trim() || "My Survival World";
+  const loader = loaderSelect?.value || "fabric";
+  const version = versionSelect?.value || DEFAULT_FABRIC_MC;
+  const loaderLabel = loader === "vanilla" ? "Vanilla" : "Fabric";
+
+  if (nameEl) nameEl.textContent = name;
+  if (metaEl) metaEl.textContent = `${loaderLabel} · ${version}`;
+  if (chipLoader) chipLoader.textContent = loaderLabel;
+  if (chipVersion) chipVersion.textContent = version;
+  if (noteEl) {
+    noteEl.textContent =
+      loader === "vanilla"
+        ? "Vanilla instances can use resource packs. Add mods by switching this instance to Fabric later."
+        : "This instance gets its own mods, configs, worlds, and packs — nothing shared with other profiles.";
+  }
+}
+
+function syncCreateInstanceForm() {
+  const versionSelect = document.getElementById("create-instance-version");
+  const loaderSelect = document.getElementById("create-instance-loader");
+  if (!versionSelect) return;
+
+  const loader = loaderSelect?.value || "fabric";
+  const current = versionSelect.value || modrinthState.version || DEFAULT_FABRIC_MC;
+  const versions = loader === "fabric" ? fabricSupportedVersions : MINECRAFT_VERSIONS;
+
+  versionSelect.innerHTML = versions
+    .map((v) => `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(v)}</option>`)
+    .join("");
+
+  if (![...versionSelect.options].some((o) => o.value === current)) {
+    versionSelect.value = versions.includes(DEFAULT_FABRIC_MC) ? DEFAULT_FABRIC_MC : versions[0];
+  }
+  if (loaderSelect && !loaderSelect.value) loaderSelect.value = "fabric";
+
+  document.querySelectorAll("[data-create-loader]").forEach((card) => {
+    const active = card.dataset.createLoader === (loaderSelect?.value || "fabric");
+    card.classList.toggle("active", active);
+    card.setAttribute("aria-checked", active ? "true" : "false");
+  });
+
+  syncCreateInstancePreview();
+}
+
+function initCreateInstance() {
+  const form = document.getElementById("create-instance-form");
+  const nameInput = document.getElementById("create-instance-name");
+  const versionSelect = document.getElementById("create-instance-version");
+  const loaderSelect = document.getElementById("create-instance-loader");
+  const hint = document.getElementById("create-instance-hint");
+  const cancelBtn = document.getElementById("create-instance-cancel");
+  if (!form) return;
+
+  syncCreateInstanceForm();
+
+  nameInput?.addEventListener("input", syncCreateInstancePreview);
+  versionSelect?.addEventListener("change", syncCreateInstancePreview);
+
+  document.getElementById("create-loader-cards")?.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-create-loader]");
+    if (!card || !loaderSelect) return;
+    loaderSelect.value = card.dataset.createLoader;
+    loaderSelect.dispatchEvent(new Event("change"));
+  });
+
+  loaderSelect?.addEventListener("change", () => {
+    const keep = versionSelect?.value;
+    const versions = loaderSelect.value === "fabric" ? fabricSupportedVersions : MINECRAFT_VERSIONS;
+    if (versionSelect) {
+      versionSelect.innerHTML = versions.map((v) => `<option value="${v}">${v}</option>`).join("");
+      versionSelect.value = versions.includes(keep) ? keep : versions.includes(DEFAULT_FABRIC_MC) ? DEFAULT_FABRIC_MC : versions[0];
+    }
+    syncCreateInstanceForm();
+  });
+
+  cancelBtn?.addEventListener("click", () => navigateToView("library"));
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = String(nameInput?.value || "").trim();
+    if (!name) return;
+
+    const submitBtn = document.getElementById("create-instance-submit");
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creating…";
+    }
+
+    const api = window.electronAPI;
+    const result = await api?.createInstance?.({
+      name,
+      mcVersion: versionSelect?.value || DEFAULT_FABRIC_MC,
+      loader: loaderSelect?.value || "fabric",
     });
-  }
 
-  function setSignInLoading(loading) {
-    if (!signInBtn) return;
-    signInBtn.classList.toggle("loading", loading);
-    signInBtn.disabled = loading;
-    signInBtn.setAttribute("aria-busy", loading ? "true" : "false");
-  }
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Create instance";
+    }
+
+    if (!result?.success || !result.instance) {
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = result?.error || "Failed to create instance.";
+      }
+      return;
+    }
+
+    if (nameInput) nameInput.value = "";
+    instanceState.selectedId = result.instance.id;
+    await refreshInstances({ preserveSelection: true });
+    syncCreateInstancePreview();
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = `Created "${result.instance.name}". Opening Library...`;
+    }
+    setTimeout(() => {
+      if (hint) hint.hidden = true;
+      navigateToView("library");
+    }, 450);
+  });
+}
+
+function initAccount() {
+  const accountBtn = document.getElementById("nav-account-btn");
+  const guestIcon = accountBtn?.querySelector(".nav-account-guest");
+  const headImg = document.getElementById("nav-account-head");
+  const authBtn = document.getElementById("account-auth-btn");
+  const api = window.electronAPI;
+  let authBusy = false;
 
   function updatePlayButton(loggedIn) {
-    const playBtn = document.querySelector(".btn-play");
-    if (!playBtn) return;
+    currentAuthState.isLoggedIn = Boolean(loggedIn);
+    syncPlayButtonForEdition();
+  }
 
-    playBtn.disabled = !loggedIn;
-    playBtn.setAttribute("aria-disabled", loggedIn ? "false" : "true");
-    playBtn.classList.toggle("ready", loggedIn);
-    playBtn.title = loggedIn ? "Launch Minecraft" : "Sign in to play";
+  function setAccountButton(loggedIn, profile) {
+    if (!accountBtn) return;
+    accountBtn.classList.toggle("is-signed-in", loggedIn);
+    accountBtn.classList.toggle("is-busy", authBusy);
+    accountBtn.disabled = authBusy;
+
+    if (loggedIn && profile) {
+      const name = profile.username || "Player";
+      accountBtn.title = `${name} — Account`;
+      accountBtn.setAttribute("aria-label", `Account — ${name}`);
+      guestIcon?.setAttribute("hidden", "");
+      if (headImg) {
+        headImg.hidden = false;
+        headImg.alt = `${name}'s player head`;
+      }
+    } else {
+      accountBtn.title = "Account";
+      accountBtn.setAttribute("aria-label", "Account");
+      guestIcon?.removeAttribute("hidden");
+      if (headImg) {
+        headImg.hidden = true;
+        headImg.removeAttribute("src");
+        headImg.alt = "";
+        headImg.onerror = null;
+      }
+    }
   }
 
   function applyAuthState(state) {
@@ -1486,156 +4346,105 @@ function initAccount() {
 
     const loggedIn = currentAuthState.isLoggedIn;
     const profile = currentAuthState.profile;
-    const role = loggedIn ? getPlayerRole(profile?.username) : null;
 
-    const avatar = document.getElementById("account-avatar");
-    const username = document.getElementById("account-username");
-    const email = document.getElementById("account-email");
-    const status = document.getElementById("account-status");
-    const msStatus = document.getElementById("account-ms-status");
-    const mcUsername = document.getElementById("account-mc-username");
-    const mcUuid = document.getElementById("account-mc-uuid");
-    const sessionExpires = document.getElementById("account-session-expires");
-    const roleBadge = document.getElementById("account-role-badge");
-    const roleRow = document.getElementById("account-role-value");
-    const spacePlusRow = document.getElementById("account-spaceplus-value");
-
-    if (loggedIn && profile) {
-      if (avatar) {
-        const skin =
-          profile.skinUrl ||
-          (profile.uuid
-            ? `https://mc-heads.net/avatar/${String(profile.uuid).replace(/-/g, "")}/96`
-            : "https://mc-heads.net/avatar/MHF_Steve/96");
-        avatar.alt = profile.username ? `${profile.username}'s avatar` : "Player avatar";
-        avatar.onerror = () => {
-          avatar.onerror = null;
-          const name = profile.username || "MHF_Steve";
-          avatar.src = `https://mc-heads.net/avatar/${encodeURIComponent(name)}/96`;
-        };
-        avatar.src = skin;
-      }
-      if (username) username.textContent = profile.username;
-      if (email) email.textContent = "Microsoft account linked";
-      if (status) {
-        status.textContent = "Online";
-        status.classList.add("online");
-      }
-      if (msStatus) {
-        msStatus.textContent = "Connected";
-        msStatus.classList.remove("muted");
-      }
-      if (mcUsername) {
-        mcUsername.textContent = profile.username;
-        mcUsername.classList.remove("muted");
-      }
-      if (mcUuid) {
-        mcUuid.textContent = profile.uuid;
-        mcUuid.classList.remove("muted");
-      }
-      if (sessionExpires) sessionExpires.textContent = formatExpires(profile.expiresAt);
-
-      if (roleBadge) {
-        if (role) {
-          roleBadge.hidden = false;
-          roleBadge.textContent = role.label;
-          roleBadge.dataset.role = role.id;
-        } else {
-          roleBadge.hidden = true;
-          roleBadge.textContent = "";
-          delete roleBadge.dataset.role;
-        }
-      }
-      if (roleRow) {
-        roleRow.textContent = role ? role.label : "Player";
-        roleRow.classList.toggle("muted", !role);
-      }
-      if (spacePlusRow) {
-        const plus = isSpacePlusActive();
-        spacePlusRow.textContent = plus ? (isOwnerPlayer() ? "Included (Owner)" : "Active") : "Not subscribed";
-        spacePlusRow.classList.toggle("muted", !plus);
-      }
-
-      signInBtn?.classList.add("hidden");
-      signOutBtnEl?.classList.remove("hidden");
-      accountSidebar?.classList.add("logged-in");
-    } else {
-      if (avatar) {
-        avatar.onerror = null;
-        avatar.alt = "";
-        avatar.src = "https://mc-heads.net/avatar/MHF_Steve/96";
-      }
-      if (username) username.textContent = "Guest";
-      if (email) email.textContent = "Not signed in";
-      if (status) {
-        status.textContent = "Offline";
-        status.classList.remove("online");
-      }
-      if (msStatus) {
-        msStatus.textContent = "Not connected";
-        msStatus.classList.add("muted");
-      }
-      if (mcUsername) {
-        mcUsername.textContent = "—";
-        mcUsername.classList.add("muted");
-      }
-      if (mcUuid) {
-        mcUuid.textContent = "—";
-        mcUuid.classList.add("muted");
-      }
-      if (sessionExpires) sessionExpires.textContent = "—";
-      if (roleBadge) {
-        roleBadge.hidden = true;
-        roleBadge.textContent = "";
-        delete roleBadge.dataset.role;
-      }
-      if (roleRow) {
-        roleRow.textContent = "—";
-        roleRow.classList.add("muted");
-      }
-      if (spacePlusRow) {
-        spacePlusRow.textContent = "—";
-        spacePlusRow.classList.add("muted");
-      }
-
-      signInBtn?.classList.remove("hidden", "loading");
-      signOutBtnEl?.classList.add("hidden");
-      accountSidebar?.classList.remove("logged-in");
-      setSignInLoading(false);
+    if (!loggedIn) {
       localStorage.removeItem(IN_GAME_KEY);
+      stopAvatarRefreshPoll();
+      skinPreviewOverride = null;
+    } else {
+      startAvatarRefreshPoll();
+      void pollActiveSkinProfile();
     }
 
+    setAccountButton(loggedIn, profile);
     updatePlayButton(loggedIn);
     updateTitlebarPlayer(currentAuthState);
-    updateHeroGreeting(currentAuthState);
+    updateHeroGreetingNameOnly(currentAuthState);
+    refreshProfileViews();
+    if (document.getElementById("view-friends")?.classList.contains("active")) {
+      void refreshFriendsView();
+    }
+    if (document.getElementById("view-skin")?.classList.contains("active")) {
+      void refreshSkinLibrary();
+    }
+
+    if (document.getElementById("cosmetics-grid")) {
+      syncCosmeticEquippedState();
+      renderCosmeticsGrid();
+    }
   }
 
-  signInBtn?.addEventListener("click", async () => {
-    setSignInLoading(true);
+  async function startMicrosoftLogin() {
+    if (!api?.loginWithMicrosoft) {
+      window.alert("Microsoft sign-in is only available in the Apex Launcher app.");
+      return;
+    }
+    if (authBusy) return;
+    authBusy = true;
+    setAccountButton(false, null);
+    if (authBtn) authBtn.disabled = true;
     try {
       const result = await api.loginWithMicrosoft();
       if (!result?.success) {
-        console.warn("Login failed:", result?.error);
+        console.warn("Login failed:", result?.error || "Sign-in failed");
+        window.alert(result?.error || "Sign-in failed. Please try again.");
+        applyAuthState({ isLoggedIn: false, profile: null });
+        return;
       }
       applyAuthState({
-        isLoggedIn: result?.success,
-        profile: result?.profile ?? null,
+        isLoggedIn: true,
+        profile: result.profile ?? null,
       });
     } catch (err) {
       console.error("Login error:", err);
+      window.alert(err?.message || "Sign-in failed. Please try again.");
       applyAuthState({ isLoggedIn: false, profile: null });
     } finally {
-      setSignInLoading(false);
+      authBusy = false;
+      setAccountButton(currentAuthState.isLoggedIn, currentAuthState.profile);
+      if (authBtn) authBtn.disabled = false;
     }
+  }
+
+  async function signOut() {
+    if (!api?.logout) return;
+    if (authBusy) return;
+    const name = currentAuthState.profile?.username || "this account";
+    if (!window.confirm(`Sign out of ${name}?`)) return;
+    authBusy = true;
+    setAccountButton(true, currentAuthState.profile);
+    if (authBtn) authBtn.disabled = true;
+    try {
+      await api.logout();
+      applyAuthState({ isLoggedIn: false, profile: null });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      authBusy = false;
+      setAccountButton(currentAuthState.isLoggedIn, currentAuthState.profile);
+      if (authBtn) authBtn.disabled = false;
+    }
+  }
+
+  authBtn?.addEventListener("click", () => {
+    if (authBusy) return;
+    if (currentAuthState.isLoggedIn) {
+      void signOut();
+      return;
+    }
+    void startMicrosoftLogin();
   });
 
-  signOutBtnEl?.addEventListener("click", async () => {
-    await api.logout();
+  document.querySelectorAll("[data-account-nav]").forEach((btn) => {
+    btn.addEventListener("click", () => navigateToView(btn.dataset.accountNav));
+  });
+
+  if (api?.getAuthProfile) {
+    api.getAuthProfile().then(applyAuthState);
+    api.onAuthStateChanged?.(applyAuthState);
+  } else {
     applyAuthState({ isLoggedIn: false, profile: null });
-  });
-
-  api.getAuthProfile().then(applyAuthState);
-  api.onAuthStateChanged(applyAuthState);
+  }
 }
 
 function hexToRgb(hex) {
@@ -1668,6 +4477,17 @@ function applyBackgroundBlur(enabled) {
   document.body.classList.toggle("blur-bg", enabled);
 }
 
+function applyBackgroundTheme(themeId) {
+  const id = BG_THEMES.some((t) => t.id === themeId) ? themeId : "starfield";
+  document.body.dataset.bgTheme = id;
+  localStorage.setItem(BG_THEME_KEY, id);
+  document.querySelectorAll("[data-bg-theme]").forEach((btn) => {
+    const active = btn.dataset.bgTheme === id;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-checked", active ? "true" : "false");
+  });
+}
+
 function applyClearPanels(enabled) {
   document.body.classList.toggle("clear-panels", enabled);
 }
@@ -1678,6 +4498,8 @@ function loadStoredPreferences() {
 
   const storedBlur = localStorage.getItem(BLUR_BG_KEY);
   applyBackgroundBlur(storedBlur === "true");
+
+  applyBackgroundTheme(localStorage.getItem(BG_THEME_KEY) || "starfield");
 
   // Default on for first launch; only disable when the user explicitly turns it off.
   const storedClearPanels = localStorage.getItem(CLEAR_PANELS_KEY);
@@ -1708,9 +4530,44 @@ function applyRamSetting(gb) {
 
 function initSettings() {
   const accentPicker = document.getElementById("accent-picker");
+  const bgThemePicker = document.getElementById("bg-theme-picker");
   const blurToggle = document.getElementById("blur-bg-toggle");
   const clearPanelsToggle = document.getElementById("clear-panels-toggle");
   const ramSlider = document.getElementById("ram-slider");
+  const perfPackPicker = document.getElementById("perf-pack-picker");
+
+  applyPerfPack(getPerfPack());
+  perfPackPicker?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-perf-pack]");
+    if (!btn) return;
+    applyPerfPack(btn.dataset.perfPack);
+  });
+
+  if (bgThemePicker) {
+    bgThemePicker.innerHTML = BG_THEMES.map(
+      (theme) => `
+        <button
+          type="button"
+          class="bg-theme-swatch"
+          data-bg-theme="${theme.id}"
+          role="radio"
+          aria-checked="false"
+          aria-label="${theme.label}"
+          title="${theme.label}"
+        >
+          <span class="bg-theme-swatch-preview bg-theme-preview-${theme.id}"></span>
+          <span class="bg-theme-swatch-label">${theme.label}</span>
+        </button>`
+    ).join("");
+
+    applyBackgroundTheme(localStorage.getItem(BG_THEME_KEY) || "starfield");
+
+    bgThemePicker.addEventListener("click", (e) => {
+      const swatch = e.target.closest("[data-bg-theme]");
+      if (!swatch) return;
+      applyBackgroundTheme(swatch.dataset.bgTheme);
+    });
+  }
 
   if (accentPicker) {
     accentPicker.innerHTML = ACCENT_COLORS.map(
@@ -1782,6 +4639,8 @@ function initAutoUpdaterUI() {
   const api = window.electronAPI;
   const drawer = document.getElementById("update-drawer");
   const dismissBtn = document.getElementById("update-drawer-dismiss");
+  const readyLaterBtn = document.getElementById("update-ready-later");
+  const errorLaterBtn = document.getElementById("update-error-later");
   const downloadBtn = document.getElementById("update-download-btn");
   const installBtn = document.getElementById("update-install-btn");
   const retryBtn = document.getElementById("update-retry-btn");
@@ -1793,6 +4652,7 @@ function initAutoUpdaterUI() {
   const progressBar = document.getElementById("update-progress-bar");
   const progressDetail = document.getElementById("update-progress-detail");
   const errorMessage = document.getElementById("update-error-message");
+  const errorTitle = document.getElementById("update-error-title");
 
   const states = {
     available: document.getElementById("update-state-available"),
@@ -1803,6 +4663,37 @@ function initAutoUpdaterUI() {
 
   let pendingVersion = "";
   let drawerLocked = false;
+  let userInitiatedCheck = false;
+  let demoMode = false;
+  const DEMO_APPLIED_KEY = "sc-demo-update-applied";
+
+  function isDemoUpdateApplied() {
+    try {
+      return localStorage.getItem(DEMO_APPLIED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markDemoUpdateApplied() {
+    try {
+      localStorage.setItem(DEMO_APPLIED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function goToSkinsMaintenance() {
+    const skinBtn =
+      document.querySelector('.nav-btn[data-view="skin"]') ||
+      document.querySelector('[data-nav="skin"]');
+    if (skinBtn) {
+      skinBtn.click();
+      return;
+    }
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+    document.getElementById("view-skin")?.classList.add("active");
+  }
 
   function setSettingsStatus(text, tone = "") {
     if (!settingsStatus) return;
@@ -1834,9 +4725,6 @@ function initAutoUpdaterUI() {
     Object.entries(states).forEach(([key, el]) => {
       if (el) el.hidden = key !== name;
     });
-    if (dismissBtn) {
-      dismissBtn.hidden = name === "downloading";
-    }
   }
 
   function setProgress(percent, detail = "") {
@@ -1847,24 +4735,134 @@ function initAutoUpdaterUI() {
     if (progressDetail) progressDetail.textContent = detail;
   }
 
+  function handleAvailable(payload) {
+    pendingVersion = payload?.version || "";
+    if (availableTitle) {
+      availableTitle.textContent = "An update is available";
+    }
+    drawerLocked = false;
+    showDrawerState("available");
+    setSettingsStatus(
+      pendingVersion
+        ? `Update v${pendingVersion} is available.`
+        : "An update is available.",
+      "ok"
+    );
+  }
+
+  function handleProgress(payload) {
+    drawerLocked = true;
+    showDrawerState("downloading");
+    const pct = payload?.percent ?? 0;
+    const speed = formatSpeed(payload?.bytesPerSecond);
+    const transferred = formatBytes(payload?.transferred);
+    const total = formatBytes(payload?.total);
+    const parts = [];
+    if (payload?.total > 0) parts.push(`${transferred} / ${total}`);
+    if (speed) parts.push(speed);
+    setProgress(pct, parts.join(" · "));
+  }
+
+  function handleDownloaded(payload) {
+    pendingVersion = payload?.version || pendingVersion;
+    drawerLocked = false;
+    showDrawerState("ready");
+    setSettingsStatus(
+      pendingVersion
+        ? `Update v${pendingVersion} downloaded — relaunch to apply.`
+        : "Update downloaded — relaunch to apply.",
+      "ok"
+    );
+  }
+
+  function handleError(payload, { forceDrawer = false } = {}) {
+    drawerLocked = false;
+    const message = payload?.message || "Update failed.";
+    const security = !!(payload?.security || payload?.code === "SIGNATURE_MISMATCH");
+    const drawerVisible = drawer && !drawer.hidden;
+    const downloading = states.downloading && !states.downloading.hidden;
+    if (forceDrawer || drawerVisible || downloading || userInitiatedCheck || security) {
+      showDrawerState("error");
+      if (errorTitle) {
+        errorTitle.textContent = security ? "Security alert" : "Update failed";
+      }
+      if (errorMessage) errorMessage.textContent = message;
+    }
+    if (userInitiatedCheck || drawerVisible || downloading || security) {
+      setSettingsStatus(message, "error");
+    }
+    userInitiatedCheck = false;
+  }
+
+  function applyBufferedState(state) {
+    if (!state?.channel) return;
+    switch (state.channel) {
+      case "update:available":
+        handleAvailable(state.payload);
+        break;
+      case "update:progress":
+        handleProgress(state.payload);
+        break;
+      case "update:downloaded":
+        handleDownloaded(state.payload);
+        break;
+      case "update:error":
+        handleError(state.payload, { forceDrawer: false });
+        break;
+      default:
+        break;
+    }
+  }
+
+  function runFakeDownloadDemo() {
+    demoMode = true;
+    drawerLocked = true;
+    setProgress(0, "Starting download…");
+    showDrawerState("downloading");
+    let pct = 0;
+    const timer = setInterval(() => {
+      pct += 8 + Math.random() * 10;
+      if (pct >= 100) {
+        clearInterval(timer);
+        setProgress(100, "Verified");
+        handleDownloaded({ version: pendingVersion || "1.0.2" });
+        return;
+      }
+      handleProgress({
+        percent: pct,
+        transferred: Math.round((pct / 100) * 48_000_000),
+        total: 48_000_000,
+        bytesPerSecond: 2_400_000,
+      });
+    }, 180);
+  }
+
   dismissBtn?.addEventListener("click", () => {
+    drawerLocked = false;
+    hideDrawer();
+  });
+  readyLaterBtn?.addEventListener("click", () => {
+    drawerLocked = false;
+    hideDrawer();
+  });
+  errorLaterBtn?.addEventListener("click", () => {
     drawerLocked = false;
     hideDrawer();
   });
 
   downloadBtn?.addEventListener("click", async () => {
+    if (demoMode) {
+      runFakeDownloadDemo();
+      return;
+    }
     if (!api?.downloadUpdate) return;
     drawerLocked = true;
     setProgress(0, "Starting download…");
     showDrawerState("downloading");
     const result = await api.downloadUpdate();
     if (result?.skipped) {
-      drawerLocked = false;
-      setSettingsStatus("Updates only work in an installed (packaged) build.", "error");
-      showDrawerState("error");
-      if (errorMessage) {
-        errorMessage.textContent = "Run a packaged install to download updates.";
-      }
+      // Unpackaged: play the fake progress so UI can be reviewed
+      runFakeDownloadDemo();
     } else if (result && result.success === false) {
       drawerLocked = false;
       showDrawerState("error");
@@ -1875,8 +4873,18 @@ function initAutoUpdaterUI() {
   });
 
   installBtn?.addEventListener("click", async () => {
+    // Demo / unpackaged: don't restart the app — open Skins (maintenance) and clear the toast
+    if (demoMode) {
+      markDemoUpdateApplied();
+      drawerLocked = false;
+      hideDrawer();
+      setSettingsStatus("Skins is in maintenance after the demo update.", "ok");
+      goToSkinsMaintenance();
+      return;
+    }
     if (!api?.installUpdate) return;
     installBtn.disabled = true;
+    setSettingsStatus("Applying update and relaunching…", "ok");
     const result = await api.installUpdate();
     if (result?.success === false) {
       installBtn.disabled = false;
@@ -1891,14 +4899,22 @@ function initAutoUpdaterUI() {
   retryBtn?.addEventListener("click", async () => {
     drawerLocked = false;
     hideDrawer();
+    if (demoMode) {
+      handleAvailable({ version: pendingVersion || "1.0.2" });
+      return;
+    }
     if (api?.checkForUpdates) {
+      userInitiatedCheck = true;
       setSettingsStatus("Checking for updates…");
       checkBtn && (checkBtn.disabled = true);
       const result = await api.checkForUpdates();
       checkBtn && (checkBtn.disabled = false);
       if (result?.skipped) {
-        setSettingsStatus("Updates only work in an installed (packaged) build.", "error");
+        userInitiatedCheck = false;
+        handleAvailable({ version: "1.0.2" });
+        demoMode = true;
       } else if (result && result.success === false) {
+        userInitiatedCheck = false;
         setSettingsStatus(result.error || "Update check failed.", "error");
       }
     }
@@ -1909,80 +4925,87 @@ function initAutoUpdaterUI() {
       setSettingsStatus("Updater API unavailable.", "error");
       return;
     }
+    userInitiatedCheck = true;
     checkBtn.disabled = true;
     setSettingsStatus("Checking for updates…");
     try {
       const result = await api.checkForUpdates();
       if (result?.skipped) {
-        setSettingsStatus("Updates only work in an installed (packaged) build.", "error");
+        userInitiatedCheck = false;
+        demoMode = true;
+        handleAvailable({ version: "1.0.2" });
+        setSettingsStatus("Demo update shown (dev / unpackaged).", "ok");
       } else if (result && result.success === false) {
+        userInitiatedCheck = false;
         setSettingsStatus(result.error || "Update check failed.", "error");
       }
-      // Success path: status updated by IPC listeners (available / not-available / error)
     } finally {
       checkBtn.disabled = false;
     }
   });
 
   api?.onUpdateChecking?.(() => {
-    setSettingsStatus("Checking for updates…");
+    if (userInitiatedCheck) setSettingsStatus("Checking for updates…");
   });
 
   api?.onUpdateAvailable?.((payload) => {
-    pendingVersion = payload?.version || "";
-    const label = pendingVersion ? `v${pendingVersion}` : "";
-    if (availableTitle) {
-      availableTitle.textContent = label
-        ? `New Update Available (${label})!`
-        : "New Update Available!";
-    }
-    drawerLocked = false;
-    showDrawerState("available");
-    setSettingsStatus(
-      label ? `Update ${label} is available.` : "An update is available.",
-      "ok"
-    );
+    userInitiatedCheck = false;
+    demoMode = false;
+    handleAvailable(payload);
   });
 
   api?.onUpdateNotAvailable?.(() => {
-    setSettingsStatus("You're on the latest version.", "ok");
+    if (userInitiatedCheck) {
+      setSettingsStatus("You're on the latest version.", "ok");
+    }
+    userInitiatedCheck = false;
   });
 
   api?.onUpdateProgress?.((payload) => {
-    drawerLocked = true;
-    showDrawerState("downloading");
-    const pct = payload?.percent ?? 0;
-    const speed = formatSpeed(payload?.bytesPerSecond);
-    const transferred = formatBytes(payload?.transferred);
-    const total = formatBytes(payload?.total);
-    const parts = [];
-    if (payload?.total > 0) parts.push(`${transferred} / ${total}`);
-    if (speed) parts.push(speed);
-    setProgress(pct, parts.join(" · "));
+    handleProgress(payload);
   });
 
   api?.onUpdateDownloaded?.((payload) => {
-    pendingVersion = payload?.version || pendingVersion;
-    drawerLocked = false;
-    showDrawerState("ready");
-    setSettingsStatus(
-      pendingVersion
-        ? `Update v${pendingVersion} downloaded — relaunch to apply.`
-        : "Update downloaded — relaunch to apply.",
-      "ok"
-    );
+    handleDownloaded(payload);
   });
 
   api?.onUpdateError?.((payload) => {
-    drawerLocked = false;
-    const message = payload?.message || "Update failed.";
-    // Ignore noisy errors while drawer was never shown for a quiet background check
-    if (!drawer?.hidden || states.downloading?.hidden === false) {
-      showDrawerState("error");
-      if (errorMessage) errorMessage.textContent = message;
-    }
-    setSettingsStatus(message, "error");
+    handleError(payload);
   });
+
+  // Catch up if the packaged startup check finished before listeners were bound
+  if (api?.getUpdateState) {
+    api.getUpdateState().then((result) => {
+      if (result?.state) {
+        applyBufferedState(result.state);
+        return;
+      }
+      // Dev toast once per machine until demo "Relaunch" is clicked
+      if (result && result.packaged === false && !isDemoUpdateApplied()) {
+        demoMode = true;
+        setTimeout(() => handleAvailable({ version: "1.0.2" }), 1200);
+      }
+    }).catch(() => {
+      if (!isDemoUpdateApplied()) {
+        demoMode = true;
+        setTimeout(() => handleAvailable({ version: "1.0.2" }), 1200);
+      }
+    });
+  } else if (!isDemoUpdateApplied()) {
+    demoMode = true;
+    setTimeout(() => handleAvailable({ version: "1.0.2" }), 1200);
+  }
+
+  // Dev hook for launcher-update agent / npm run show-update
+  window.__spaceShowUpdateToast = (version) => {
+    try {
+      localStorage.removeItem(DEMO_APPLIED_KEY);
+    } catch {
+      /* ignore */
+    }
+    demoMode = true;
+    handleAvailable({ version: version || "1.0.2" });
+  };
 }
 
 const STORE_CREDITS_PER_EUR = 100;
@@ -2124,6 +5147,19 @@ async function syncPlayerEntitlementsFromBackend() {
     if (typeof player.spacePlus === "boolean") {
       localStorage.setItem(SPACEPLUS_SUB_KEY, player.spacePlus ? "true" : "false");
       document.dispatchEvent(new CustomEvent("sc-spaceplus-sync"));
+    }
+    if (typeof player.stardust === "number") {
+      localStorage.setItem("sc-stardust", String(player.stardust));
+    }
+    if (Array.isArray(player.ownedCosmetics)) {
+      localStorage.setItem(OWNED_COSMETICS_KEY, JSON.stringify(player.ownedCosmetics));
+      document.dispatchEvent(new CustomEvent("sc-cosmetics-changed"));
+    }
+    if (player.equippedCosmetics) {
+      localStorage.setItem(EQUIPPED_COSMETICS_KEY, JSON.stringify(player.equippedCosmetics));
+    }
+    if (typeof window.refreshCosmicShop === "function") {
+      window.refreshCosmicShop();
     }
     return player;
   } catch {
@@ -2465,12 +5501,6 @@ function initSpacePlus() {
     updateSubscriptionUI();
     syncCosmeticEquippedState();
     renderCosmeticsGrid();
-    const spacePlusRow = document.getElementById("account-spaceplus-value");
-    if (spacePlusRow && currentAuthState.isLoggedIn) {
-      const plus = isSpacePlusActive();
-      spacePlusRow.textContent = plus ? (isOwnerPlayer() ? "Included (Owner)" : "Active") : "Not subscribed";
-      spacePlusRow.classList.toggle("muted", !plus);
-    }
   });
 
   updateSubscriptionUI();
@@ -2559,17 +5589,139 @@ function hideLaunchCrashTips() {
   if (list) list.innerHTML = "";
 }
 
+function hideAiRecoveryPanel() {
+  const panel = document.getElementById("launch-ai-recovery");
+  if (!panel) return;
+  panel.hidden = true;
+  panel.classList.remove("is-resolved", "is-failed");
+  const list = document.getElementById("launch-ai-recovery-list");
+  if (list) list.innerHTML = "";
+  const status = document.getElementById("launch-ai-recovery-status");
+  if (status) status.textContent = "Standing by…";
+  const phase = document.getElementById("launch-ai-recovery-phase");
+  if (phase) phase.textContent = "Idle";
+}
+
+function showAiRecoveryPanel() {
+  const panel = document.getElementById("launch-ai-recovery");
+  if (!panel) return;
+  panel.hidden = false;
+  panel.classList.remove("is-resolved", "is-failed");
+}
+
+function updateAiRecoveryStatus(payload = {}) {
+  const panel = document.getElementById("launch-ai-recovery");
+  const statusEl = document.getElementById("launch-ai-recovery-status");
+  const phaseEl = document.getElementById("launch-ai-recovery-phase");
+  if (!panel) return;
+
+  // Failed escalations go to Discord staff only — keep the launcher quiet.
+  if (
+    payload.phase === "escalated-silent" ||
+    payload.phase === "escalating-silent" ||
+    payload.result?.silentEscalate
+  ) {
+    hideAiRecoveryPanel();
+    return;
+  }
+
+  panel.hidden = false;
+
+  if (phaseEl) {
+    phaseEl.textContent = String(payload.phase || "working").replace(/-/g, " ");
+  }
+  if (statusEl && payload.label) {
+    statusEl.textContent = payload.label;
+  }
+
+  if (payload.phase === "resolved") {
+    panel.classList.add("is-resolved");
+    panel.classList.remove("is-failed");
+  } else if (payload.phase === "failed" || payload.phase === "reporting") {
+    panel.classList.add("is-failed");
+    panel.classList.remove("is-resolved");
+  }
+
+  const result = payload.result;
+  if (result && Array.isArray(result.tips)) {
+    const list = document.getElementById("launch-ai-recovery-list");
+    if (list) {
+      const extras = [];
+      if (result.diagnosis) extras.push(`Diagnosis: ${result.diagnosis}`);
+      if (result.recovered) extras.push("Safe repairs applied — try PLAY again.");
+      list.innerHTML = [...extras, ...result.tips]
+        .slice(0, 8)
+        .map((tip) => `<li>${escapeHtml(tip)}</li>`)
+        .join("");
+    }
+  }
+}
+
+function startAiCrashRecovery({ logText, exitCode, error, source }) {
+  const api = window.electronAPI;
+  if (!api?.runCrashRecovery) return;
+
+  showAiRecoveryPanel();
+  updateAiRecoveryStatus({
+    phase: "collecting",
+    label: "AI recovery — reading Apex Launcher files & logs…",
+  });
+
+  const version =
+    document.getElementById("launch-version")?.value ||
+    localStorage.getItem("sc_mc_version") ||
+    "1.21.1";
+  const loader =
+    document.getElementById("launch-loader")?.value ||
+    localStorage.getItem("sc_mc_loader") ||
+    "fabric";
+
+  api
+    .runCrashRecovery({
+      logText: logText || getLaunchConsoleText(),
+      exitCode: exitCode ?? null,
+      error: error || null,
+      version,
+      loader,
+      source: source || "game",
+    })
+    .catch((err) => {
+      updateAiRecoveryStatus({
+        phase: "failed",
+        label: err?.message || "AI recovery failed to start",
+        result: { tips: ["Could not start AI recovery."], recovered: false },
+      });
+    });
+}
+
+/** Dev / soft-reload hook — synthetic crash → AI recovery → Discord when unresolved. */
+window.__spaceTriggerCrashTest = (payload = {}) => {
+  startAiCrashRecovery({
+    logText: payload.logText,
+    exitCode: payload.exitCode ?? 1,
+    error: payload.error || "Synthetic test crash — Discord staff escalate",
+    source: payload.source || "test",
+  });
+  return { ok: true };
+};
+
 function buildLaunchCrashTips(logText = "", exitCode = null) {
   const text = String(logText || "");
   const tips = [];
 
+  if (/No Fabric API pin|Fabric API required.*Prefer/i.test(text)) {
+    tips.push(`Open the launch menu and pick Minecraft ${DEFAULT_FABRIC_MC} with Fabric (recommended).`);
+    tips.push("Fabric is pinned for 26.2 / 26.1.x / 1.21.x — year-based IDs like 26.2 are the real Mojang versions (not 1.26.x).");
+    tips.push("Switch to Vanilla in the launch menu if you need an older release without Fabric injection.");
+  }
+
   if (/ClientBrandRetrieverMixin|InvalidInjectionException|Mixin transformation/i.test(text)) {
-    tips.push("Space Client core mixin failed — rebuild/update space-client-core (npm run build:mods) and relaunch.");
+    tips.push("Fabric mixin crash — remove conflicting jars from .minecraft/mods and try a different Performance Pack in Settings.");
     tips.push("Make sure Cosmetics / brand mixins target Minecraft 1.21.1 getClientModName, not <clinit>.");
   }
 
   if (/unknown protocol:\s*c|Invalid URL C:/i.test(text)) {
-    tips.push("Log4j Windows path bug — relaunch with the latest Space Client (file:// log config fix). This alone usually does not stop the game.");
+    tips.push("Log4j Windows path bug — relaunch with the latest Apex Launcher (file:// log config fix). This alone usually does not stop the game.");
   }
 
   if (/OutOfMemoryError|Java heap space|GC overhead/i.test(text)) {
@@ -2589,7 +5741,7 @@ function buildLaunchCrashTips(logText = "", exitCode = null) {
   }
 
   if (/fabric-api|ModResolutionException|Incompatible mods/i.test(text)) {
-    tips.push("Fabric API / mod conflict — remove extra jars from .minecraft/mods and keep only Space Client injection.");
+    tips.push("Fabric API / mod conflict — remove extra jars from .minecraft/mods and keep only Apex Launcher injection.");
   }
 
   if (exitCode === 1 || exitCode === -1 || /Minecraft has crashed|exited with code [^0]/i.test(text)) {
@@ -2622,7 +5774,10 @@ function setLaunchProgressVisible(visible) {
   overlay.hidden = !visible;
   overlay.setAttribute("aria-hidden", visible ? "false" : "true");
   document.body.classList.toggle("launch-overlay-open", visible);
-  if (!visible) hideLaunchCrashTips();
+  if (!visible) {
+    hideLaunchCrashTips();
+    hideAiRecoveryPanel();
+  }
 }
 
 function updateLaunchProgressUI(payload = {}, { resetPercent = false } = {}) {
@@ -2664,16 +5819,12 @@ updateLaunchProgressUI._lastPercent = 0;
 function resetPlayButton(btn, { loggedIn } = {}) {
   if (!btn) return;
   btn.classList.remove("launching");
-  btn.textContent = "PLAY";
   btn.style.opacity = "";
+  setLaunchMenuInteractive(true);
   if (loggedIn !== undefined) {
-    btn.disabled = !loggedIn;
-    btn.setAttribute("aria-disabled", loggedIn ? "false" : "true");
-    btn.classList.toggle("ready", loggedIn);
-    btn.title = loggedIn ? "Launch Minecraft" : "Sign in to play";
-  } else if (!btn.disabled) {
-    btn.title = "Launch Minecraft";
+    currentAuthState.isLoggedIn = Boolean(loggedIn);
   }
+  syncPlayButtonForEdition();
 }
 
 function initPlayButton() {
@@ -2724,7 +5875,7 @@ function initPlayButton() {
     appendLaunchConsoleLine("Minecraft process started — streaming Game Logs…");
     // Keep overlay open (do not dismiss) so crash output remains visible.
     btn.classList.remove("launching");
-    btn.textContent = "IN GAME";
+    setPlayButtonLabel(btn, "In Game");
     btn.disabled = true;
     btn.setAttribute("aria-disabled", "true");
     btn.title = "Minecraft is running — watch Game Logs";
@@ -2745,9 +5896,16 @@ function initPlayButton() {
       speed: 0,
     });
     if (crashed) {
-      showLaunchCrashTips(getLaunchConsoleText(), payload?.code ?? null);
+      const logText = getLaunchConsoleText();
+      showLaunchCrashTips(logText, payload?.code ?? null);
+      startAiCrashRecovery({
+        logText,
+        exitCode: payload?.code ?? null,
+        source: "game-close",
+      });
     } else {
       hideLaunchCrashTips();
+      hideAiRecoveryPanel();
     }
     lastSpeed = 0;
     lastLabel = "Preparing…";
@@ -2768,8 +5926,41 @@ function initPlayButton() {
       speed: 0,
     });
     appendLaunchConsoleLine(`Error: ${payload?.error || "Unknown error"}`);
-    showLaunchCrashTips(`${getLaunchConsoleText()}\n${payload?.error || ""}`, null);
+    const logText = `${getLaunchConsoleText()}\n${payload?.error || ""}`;
+    showLaunchCrashTips(logText, null);
+    if (!isFabricPinLaunchError(payload?.error)) {
+      startAiCrashRecovery({
+        logText,
+        error: payload?.error || "Unknown error",
+        source: "game-error",
+      });
+    } else {
+      hideAiRecoveryPanel();
+    }
     resetPlayButton(btn, { loggedIn: true });
+  });
+
+  api?.onCrashRecoveryStatus?.((payload) => {
+    updateAiRecoveryStatus(payload || {});
+  });
+
+  api?.onCrashRecoveryResult?.((payload) => {
+    if (payload?.silentEscalate || payload?.reportedToStaff || payload?.reportQueued) {
+      if (!payload?.recovered) {
+        hideAiRecoveryPanel();
+        return;
+      }
+    }
+    updateAiRecoveryStatus({
+      phase: payload?.recovered ? "resolved" : "failed",
+      label: payload?.recovered
+        ? "AI recovery applied — try PLAY again"
+        : payload?.error || "Recovery unfinished",
+      result: payload,
+    });
+    if (payload?.recovered) {
+      appendLaunchConsoleLine(`[AI recovery] ${payload.diagnosis || "Repairs applied"} — relaunch when ready.`);
+    }
   });
 
   document.getElementById("launch-overlay-dismiss")?.addEventListener("click", () => {
@@ -2803,6 +5994,65 @@ function initPlayButton() {
   btn.addEventListener("click", async () => {
     if (btn.disabled || launching) return;
 
+    if (modrinthState.edition === "bedrock") {
+      if (!api?.bridgeLaunchBedrock) {
+        appendLaunchConsoleLine("Bedrock launch requires the Electron app (npm start).");
+        return;
+      }
+      launching = true;
+      btn.classList.add("launching");
+      btn.disabled = true;
+      btn.setAttribute("aria-disabled", "true");
+      const preview = Boolean(modrinthState.bedrockPreview);
+      setPlayButtonLabel(btn, preview ? "Opening Preview…" : "Opening…");
+      clearLaunchConsole();
+      appendLaunchConsoleLine(
+        preview
+          ? "Opening Minecraft Bedrock Preview (Microsoft.MinecraftWindowsBeta)…"
+          : "Opening Minecraft Bedrock Retail (Microsoft.MinecraftUWP)…"
+      );
+
+      try {
+        const result = await api.bridgeLaunchBedrock({ preview });
+        if (result?.success) {
+          appendLaunchConsoleLine(
+            preview
+              ? "Minecraft Bedrock Preview launched."
+              : "Minecraft Bedrock Retail launched."
+          );
+          setPlayButtonLabel(btn, preview ? "Preview Open" : "Bedrock Open");
+          setTimeout(() => {
+            resetPlayButton(btn);
+            launching = false;
+          }, 1200);
+        } else {
+          const msg =
+            result?.error?.message ||
+            result?.error?.title ||
+            (preview
+              ? "Bedrock Preview package not found on this system."
+              : "Could not open Minecraft Bedrock.");
+          appendLaunchConsoleLine(`Error: ${msg}`);
+          if (preview || /Preview package not found/i.test(String(msg))) {
+            window.alert("Bedrock Preview package not found on this system.");
+          } else if (result?.storeOpened) {
+            appendLaunchConsoleLine("Opened the Microsoft Store so you can install Minecraft.");
+          }
+          resetPlayButton(btn);
+          launching = false;
+        }
+      } catch (err) {
+        const msg = err?.message || String(err);
+        appendLaunchConsoleLine(`Error: ${msg}`);
+        if (preview || /Preview package not found/i.test(msg)) {
+          window.alert("Bedrock Preview package not found on this system.");
+        }
+        resetPlayButton(btn);
+        launching = false;
+      }
+      return;
+    }
+
     if (!api?.launchGame) {
       clearLaunchConsole();
       setLaunchOverlayState("failed");
@@ -2828,28 +6078,64 @@ function initPlayButton() {
     btn.classList.add("launching");
     btn.disabled = true;
     btn.setAttribute("aria-disabled", "true");
-    btn.textContent = "LAUNCHING…";
+    setLaunchMenuInteractive(false);
+    setPlayButtonLabel(btn, "Launching…");
     updateLaunchProgressUI({
       label: "Preparing launch…",
       percent: 0,
       detail: "",
       speed: 0,
     }, { resetPercent: true });
-    appendLaunchConsoleLine("Starting Space Client launch pipeline…");
+    appendLaunchConsoleLine("Starting Apex Launcher launch pipeline…");
 
-    const version =
-      document.getElementById("home-version")?.value ||
-      modrinthState.version ||
-      "1.21.1";
-    const loader =
-      document.getElementById("home-loader")?.value ||
-      modrinthState.homeLoader ||
-      "fabric";
+    const selectedInstance = getSelectedInstance();
+    if (!selectedInstance) {
+      launching = false;
+      setLaunchOverlayState("failed");
+      updateLaunchProgressUI({
+        label: "No instance selected",
+        percent: 0,
+        detail: "Create or select an instance before launching.",
+        speed: 0,
+      });
+      appendLaunchConsoleLine("Create or select an instance before launching.");
+      resetPlayButton(btn, { loggedIn: true });
+      return;
+    }
+    const version = selectedInstance.mcVersion || modrinthState.version || DEFAULT_FABRIC_MC;
+    let loader = selectedInstance.loader || modrinthState.homeLoader || "fabric";
+    if (isLegacyJavaTarget(version)) {
+      loader = "vanilla";
+    }
     const memoryGb = getRamGb();
     const equippedCape = getEquippedCosmetics().capes || null;
 
+    const launchValidationError = validateLaunchSelection(version, loader);
+    if (launchValidationError) {
+      launching = false;
+      setLaunchOverlayState("failed");
+      updateLaunchProgressUI({
+        label: "Unsupported Fabric version",
+        percent: 0,
+        detail: launchValidationError,
+        speed: 0,
+      });
+      appendLaunchConsoleLine(`Error: ${launchValidationError}`);
+      showLaunchCrashTips(launchValidationError, null);
+      hideAiRecoveryPanel();
+      resetPlayButton(btn, { loggedIn: true });
+      return;
+    }
+
     try {
-      const result = await api.launchGame({ version, loader, memoryGb, equippedCape });
+      const result = await api.launchGame({
+        version,
+        loader,
+        instancePath: selectedInstance.path,
+        memoryGb,
+        equippedCape,
+        perfPack: getPerfPack(),
+      });
       if (!result?.success) {
         launching = false;
         setLaunchOverlayState("failed");
@@ -2879,25 +6165,605 @@ function initPlayButton() {
 
 loadStoredPreferences();
 
+/** @type {ReturnType<typeof setInterval>|null} */
+let friendsPresenceTimer = null;
+/** @type {Map<string, object>} */
+let friendsPresenceMap = new Map();
+
+function setSkinTab(tabId) {
+  const next = tabId === "browse" ? "browse" : "library";
+  document.querySelectorAll("[data-skin-tab]").forEach((btn) => {
+    const active = btn.dataset.skinTab === next;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  const libraryPanel = document.getElementById("skin-panel-library");
+  const browsePanel = document.getElementById("skin-panel-browse");
+  if (libraryPanel) {
+    libraryPanel.classList.toggle("active", next === "library");
+    libraryPanel.hidden = next !== "library";
+  }
+  if (browsePanel) {
+    browsePanel.classList.toggle("active", next === "browse");
+    browsePanel.hidden = next !== "browse";
+  }
+}
+
+async function refreshSkinLibrary() {
+  const api = window.electronAPI;
+  const grid = document.getElementById("skin-library-grid");
+  const hint = document.getElementById("skin-library-hint");
+  if (!grid || !api?.listSkins) return;
+
+  try {
+    const result = await api.listSkins();
+    const skins = result?.skins || [];
+    skinLibraryById.clear();
+    skins.forEach((skin) => skinLibraryById.set(skin.id, skin));
+    if (hint) {
+      hint.textContent = skins.length
+        ? `${skins.length} saved skin${skins.length === 1 ? "" : "s"}`
+        : "Saved skins appear here. Import a PNG or save one from Browse.";
+    }
+    if (!skins.length) {
+      grid.innerHTML = "";
+      return;
+    }
+    grid.innerHTML = skins
+      .map((skin) => {
+        const thumb =
+          skin.previewDataUrl ||
+          skin.bodyPreviewUrl ||
+          "https://mc-heads.net/avatar/MHF_Steve/64";
+        const selected = skinPreviewOverride?.skinId === skin.id ? " is-selected" : "";
+        return `
+          <article class="skin-library-card${selected}" data-skin-id="${escapeHtml(skin.id)}" tabindex="0" role="button" aria-label="Preview ${escapeHtml(skin.name)}">
+            <img class="skin-library-thumb" src="${escapeHtml(thumb)}" alt="" width="64" height="64" decoding="async" referrerpolicy="no-referrer" />
+            <p class="skin-library-name" title="${escapeHtml(skin.name)}">${escapeHtml(skin.name)}</p>
+            <label class="skin-variant-label">
+              Model
+              <select class="select-field skin-library-variant" data-skin-variant-for="${escapeHtml(skin.id)}" aria-label="Skin model for ${escapeHtml(skin.name)}">
+                <option value="classic"${skin.variant === "classic" ? " selected" : ""}>Classic</option>
+                <option value="slim"${skin.variant === "slim" ? " selected" : ""}>Slim</option>
+              </select>
+            </label>
+            <div class="skin-library-actions">
+              <button type="button" class="btn-mod primary" data-skin-use="${escapeHtml(skin.id)}">Use</button>
+              <button type="button" class="btn-mod" data-skin-delete="${escapeHtml(skin.id)}">Delete</button>
+            </div>
+          </article>`;
+      })
+      .join("");
+  } catch (err) {
+    if (hint) hint.textContent = err?.message || "Could not load skin library.";
+  }
+}
+
+function previewLibrarySkin(skinId) {
+  const skin = skinLibraryById.get(skinId);
+  if (!skin) return;
+  const variantSelect = document.querySelector(`[data-skin-variant-for="${skinId}"]`);
+  skinPreviewOverride = {
+    skinId,
+    name: skin.name,
+    variant: variantSelect?.value || skin.variant || "classic",
+  };
+  document.querySelectorAll(".skin-library-card").forEach((card) => {
+    card.classList.toggle("is-selected", card.dataset.skinId === skinId);
+  });
+  void refreshProfileViews();
+}
+
+function applyAuthProfileFromSkinResult(profile, activeSkin) {
+  if (!profile) return;
+  bustSkinPreviewImages();
+  const nextProfile = {
+    ...(currentAuthState.profile || {}),
+    ...profile,
+    isLoggedIn: true,
+  };
+  if (activeSkin?.variant) nextProfile.skinVariant = activeSkin.variant;
+  if (activeSkin?.url) {
+    nextProfile.skinTextureUrl = String(activeSkin.url).replace(/^http:\/\//i, "https://");
+  }
+  currentAuthState = {
+    isLoggedIn: true,
+    profile: nextProfile,
+  };
+  refreshProfileViews();
+  updateTitlebarPlayer(currentAuthState);
+  startAvatarRefreshPoll();
+}
+
+async function refreshSkinAfterApply() {
+  const api = window.electronAPI;
+  if (!api?.getActiveSkin) return;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    bustSkinPreviewImages();
+    const result = await api.getActiveSkin();
+    if (result?.success) {
+      applyAuthProfileFromSkinResult(result.profile, result.activeSkin);
+      if (result.activeSkin?.url) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }
+}
+
+async function initSkins() {
+  const api = window.electronAPI;
+  if (!api?.listSkins) return;
+
+  document.querySelectorAll("[data-skin-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => setSkinTab(btn.dataset.skinTab));
+  });
+
+  document.getElementById("skin-import-btn")?.addEventListener("click", async () => {
+    const result = await api.importSkin();
+    if (result?.cancelled) return;
+    if (!result?.success) {
+      const hint = document.getElementById("skin-library-hint");
+      if (hint) hint.textContent = result?.error || "Import failed.";
+      return;
+    }
+    setSkinTab("library");
+    await refreshSkinLibrary();
+  });
+
+  document.getElementById("skin-reset-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("skin-reset-btn");
+    if (btn) btn.disabled = true;
+    const result = await api.resetSkin();
+    if (result?.success) {
+      skinPreviewOverride = null;
+      applyAuthProfileFromSkinResult(result.profile);
+      await refreshSkinAfterApply();
+    } else {
+      const status = document.getElementById("skin-preview-status");
+      if (status) status.textContent = result?.error || "Reset failed.";
+    }
+    if (btn) btn.disabled = !currentAuthState.isLoggedIn;
+  });
+
+  document.getElementById("skin-library-grid")?.addEventListener("click", async (e) => {
+    const useBtn = e.target.closest("[data-skin-use]");
+    const delBtn = e.target.closest("[data-skin-delete]");
+    const card = e.target.closest(".skin-library-card");
+
+    if (!useBtn && !delBtn && card?.dataset.skinId) {
+      previewLibrarySkin(card.dataset.skinId);
+      return;
+    }
+
+    if (useBtn) {
+      if (!currentAuthState.isLoggedIn) {
+        const hint = document.getElementById("skin-library-hint");
+        if (hint) hint.textContent = "Sign in to apply a skin to your account.";
+        return;
+      }
+      useBtn.disabled = true;
+      const skinId = useBtn.getAttribute("data-skin-use");
+      const variantSelect = document.querySelector(`[data-skin-variant-for="${skinId}"]`);
+      const variant = variantSelect?.value || "classic";
+      const result = await api.applySkin({ skinId, variant });
+      useBtn.disabled = false;
+      if (result?.success) {
+        skinPreviewOverride = null;
+        applyAuthProfileFromSkinResult(result.profile);
+        await refreshSkinAfterApply();
+        const hint = document.getElementById("skin-library-hint");
+        if (hint) hint.textContent = "Skin applied to your Microsoft account.";
+      } else {
+        const hint = document.getElementById("skin-library-hint");
+        if (hint) hint.textContent = result?.error || "Could not apply skin.";
+      }
+      return;
+    }
+    if (delBtn) {
+      const deletedId = delBtn.getAttribute("data-skin-delete");
+      await api.deleteSkin(deletedId);
+      if (skinPreviewOverride?.skinId === deletedId) {
+        skinPreviewOverride = null;
+        void refreshProfileViews();
+      }
+      await refreshSkinLibrary();
+    }
+  });
+
+  document.getElementById("skin-library-grid")?.addEventListener("change", (e) => {
+    const select = e.target.closest(".skin-library-variant");
+    if (!select) return;
+    const skinId = select.getAttribute("data-skin-variant-for");
+    if (skinPreviewOverride?.skinId === skinId) {
+      skinPreviewOverride.variant = select.value || "classic";
+      void refreshProfileViews();
+      return;
+    }
+    previewLibrarySkin(skinId);
+  });
+
+  document.getElementById("skin-browse-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("skin-browse-input");
+    const status = document.getElementById("skin-browse-status");
+    const resultBox = document.getElementById("skin-browse-result");
+    const username = String(input?.value || "").trim();
+    if (!username) return;
+    if (status) status.textContent = "Looking up…";
+    if (resultBox) resultBox.hidden = true;
+    skinBrowsePlayer = null;
+
+    const result = await api.searchSkinPlayer(username);
+    if (!result?.success || !result.player) {
+      if (status) status.textContent = result?.error || "Player not found.";
+      return;
+    }
+    skinBrowsePlayer = result.player;
+    if (status) status.textContent = "";
+    const nameEl = document.getElementById("skin-browse-name");
+    const variantEl = document.getElementById("skin-browse-variant");
+    if (nameEl) nameEl.textContent = result.player.name;
+    if (variantEl) variantEl.value = result.player.variant === "slim" ? "slim" : "classic";
+    if (resultBox) resultBox.hidden = false;
+    updateBrowseBodyPreview();
+  });
+
+  document.getElementById("skin-browse-variant")?.addEventListener("change", () => {
+    updateBrowseBodyPreview();
+  });
+
+  document.getElementById("skin-browse-save")?.addEventListener("click", async () => {
+    const status = document.getElementById("skin-browse-status");
+    if (!skinBrowsePlayer?.textureUrl) {
+      if (status) status.textContent = "No public texture URL for this player.";
+      return;
+    }
+    const variant = document.getElementById("skin-browse-variant")?.value || "classic";
+    const result = await api.saveSkinFromUrl({
+      url: skinBrowsePlayer.textureUrl,
+      name: skinBrowsePlayer.name,
+      variant,
+      playerName: skinBrowsePlayer.name,
+    });
+    if (result?.success) {
+      if (status) status.textContent = `Saved ${skinBrowsePlayer.name} to library.`;
+      await refreshSkinLibrary();
+    } else if (status) {
+      status.textContent = result?.error || "Save failed.";
+    }
+  });
+
+  document.getElementById("skin-browse-apply")?.addEventListener("click", async () => {
+    const status = document.getElementById("skin-browse-status");
+    if (!currentAuthState.isLoggedIn) {
+      if (status) status.textContent = "Sign in to apply a skin.";
+      return;
+    }
+    if (!skinBrowsePlayer?.textureUrl) {
+      if (status) status.textContent = "No public texture URL for this player.";
+      return;
+    }
+    const variant = document.getElementById("skin-browse-variant")?.value || "classic";
+    const result = await api.applySkin({
+      url: skinBrowsePlayer.textureUrl,
+      variant,
+      name: skinBrowsePlayer.name,
+      saveToLibrary: true,
+    });
+    if (result?.success) {
+      skinPreviewOverride = null;
+      applyAuthProfileFromSkinResult(result.profile);
+      await refreshSkinAfterApply();
+      if (status) status.textContent = `Now using ${skinBrowsePlayer.name}'s skin.`;
+      await refreshSkinLibrary();
+    } else if (status) {
+      status.textContent = result?.error || "Apply failed.";
+    }
+  });
+}
+
+function presenceLabel(status) {
+  const s = String(status || "").toUpperCase();
+  if (s.startsWith("PLAYING")) return { text: "In game", cls: "is-playing" };
+  if (s === "ONLINE") return { text: "Online", cls: "is-online" };
+  return { text: "Offline", cls: "" };
+}
+
+function friendRowHtml(friend, { mode }) {
+  const id = friend.profileId || "";
+  const name = friend.name || "Unknown";
+  const head = `https://mc-heads.net/avatar/${String(id).replace(/-/g, "")}/36`;
+  const presence = friendsPresenceMap.get(String(id).replace(/-/g, "").toLowerCase())
+    || friendsPresenceMap.get(id);
+  const label = mode === "friend" ? presenceLabel(presence?.status) : { text: mode === "incoming" ? "Incoming" : "Outgoing", cls: "" };
+
+  let actions = "";
+  if (mode === "friend") {
+    actions = `<button type="button" class="btn-mod" data-friend-remove="${escapeHtml(id)}">Remove</button>`;
+  } else if (mode === "incoming") {
+    actions = `
+      <button type="button" class="btn-mod primary" data-friend-accept="${escapeHtml(id)}">Accept</button>
+      <button type="button" class="btn-mod" data-friend-decline="${escapeHtml(id)}">Decline</button>`;
+  } else {
+    actions = `<button type="button" class="btn-mod" data-friend-cancel="${escapeHtml(id)}">Cancel</button>`;
+  }
+
+  return `
+    <li class="friends-row" data-friend-id="${escapeHtml(id)}">
+      <img class="friends-row-head" src="${escapeHtml(head)}" alt="" width="36" height="36" decoding="async" referrerpolicy="no-referrer" />
+      <div class="friends-row-body">
+        <p class="friends-row-name">${escapeHtml(name)}</p>
+        <p class="friends-row-presence ${label.cls}">${escapeHtml(label.text)}</p>
+      </div>
+      <div class="friends-row-actions">${actions}</div>
+    </li>`;
+}
+
+function setFriendsStatus(message, kind = "") {
+  const el = document.getElementById("friends-status");
+  if (!el) return;
+  el.textContent = message || "";
+  el.classList.toggle("is-error", kind === "error");
+  el.classList.toggle("is-ok", kind === "ok");
+}
+
+function stopFriendsPresencePoll() {
+  if (friendsPresenceTimer) {
+    clearInterval(friendsPresenceTimer);
+    friendsPresenceTimer = null;
+  }
+}
+
+function startFriendsPresencePoll() {
+  stopFriendsPresencePoll();
+  friendsPresenceTimer = setInterval(() => {
+    const friendsView = document.getElementById("view-friends");
+    if (!friendsView?.classList.contains("active")) {
+      stopFriendsPresencePoll();
+      return;
+    }
+    void syncFriendsPresenceOnly();
+  }, 35000);
+}
+
+async function syncFriendsPresenceOnly() {
+  const api = window.electronAPI;
+  if (!api?.syncFriendsPresence || !currentAuthState.isLoggedIn) return;
+  try {
+    const result = await api.syncFriendsPresence({});
+    friendsPresenceMap = new Map();
+    for (const p of result?.presence || []) {
+      const key = String(p.profileId || "").replace(/-/g, "").toLowerCase();
+      if (key) friendsPresenceMap.set(key, p);
+      if (p.profileId) friendsPresenceMap.set(p.profileId, p);
+    }
+    // Re-render list labels without full refetch if DOM already has rows
+    document.querySelectorAll("#friends-list .friends-row").forEach((row) => {
+      const id = row.getAttribute("data-friend-id") || "";
+      const key = id.replace(/-/g, "").toLowerCase();
+      const presence = friendsPresenceMap.get(key) || friendsPresenceMap.get(id);
+      const label = presenceLabel(presence?.status);
+      const el = row.querySelector(".friends-row-presence");
+      if (el) {
+        el.textContent = label.text;
+        el.className = `friends-row-presence ${label.cls}`;
+      }
+    });
+  } catch {
+    // ignore poll errors
+  }
+}
+
+async function refreshFriendsView() {
+  const api = window.electronAPI;
+  const signedOut = document.getElementById("friends-signed-out");
+  const signedIn = document.getElementById("friends-signed-in");
+  if (!signedOut || !signedIn) return;
+
+  const loggedIn = Boolean(currentAuthState?.isLoggedIn);
+  signedOut.hidden = loggedIn;
+  signedIn.hidden = !loggedIn;
+
+  if (!loggedIn) {
+    stopFriendsPresencePoll();
+    return;
+  }
+  if (!api?.listFriends) {
+    setFriendsStatus("Friends API unavailable.", "error");
+    return;
+  }
+
+  setFriendsStatus("Loading…");
+  const [listResult, presenceResult] = await Promise.all([
+    api.listFriends(),
+    api.syncFriendsPresence({}),
+  ]);
+
+  friendsPresenceMap = new Map();
+  for (const p of presenceResult?.presence || []) {
+    const key = String(p.profileId || "").replace(/-/g, "").toLowerCase();
+    if (key) friendsPresenceMap.set(key, p);
+    if (p.profileId) friendsPresenceMap.set(p.profileId, p);
+  }
+
+  const friends = listResult?.friends || [];
+  const incoming = listResult?.incomingRequests || [];
+  const outgoing = listResult?.outgoingRequests || [];
+
+  const listEl = document.getElementById("friends-list");
+  const incomingEl = document.getElementById("friends-incoming");
+  const outgoingEl = document.getElementById("friends-outgoing");
+  const listEmpty = document.getElementById("friends-list-empty");
+  const incomingEmpty = document.getElementById("friends-incoming-empty");
+  const outgoingEmpty = document.getElementById("friends-outgoing-empty");
+
+  if (listEl) listEl.innerHTML = friends.map((f) => friendRowHtml(f, { mode: "friend" })).join("");
+  if (incomingEl) incomingEl.innerHTML = incoming.map((f) => friendRowHtml(f, { mode: "incoming" })).join("");
+  if (outgoingEl) outgoingEl.innerHTML = outgoing.map((f) => friendRowHtml(f, { mode: "outgoing" })).join("");
+
+  if (listEmpty) listEmpty.hidden = friends.length > 0;
+  if (incomingEmpty) incomingEmpty.hidden = incoming.length > 0;
+  if (outgoingEmpty) outgoingEmpty.hidden = outgoing.length > 0;
+
+  const count = document.getElementById("friends-count");
+  const inCount = document.getElementById("friends-incoming-count");
+  const outCount = document.getElementById("friends-outgoing-count");
+  if (count) count.textContent = String(friends.length);
+  if (inCount) inCount.textContent = String(incoming.length);
+  if (outCount) outCount.textContent = String(outgoing.length);
+
+  if (!listResult?.success) {
+    setFriendsStatus(listResult?.error || "Could not load friends.", "error");
+  } else if (presenceResult && !presenceResult.success && presenceResult.error) {
+    setFriendsStatus(presenceResult.error, "error");
+  } else {
+    setFriendsStatus("");
+  }
+
+  startFriendsPresencePoll();
+}
+
+async function initFriends() {
+  const api = window.electronAPI;
+  if (!api?.listFriends) return;
+
+  document.getElementById("friends-refresh-btn")?.addEventListener("click", () => {
+    void refreshFriendsView();
+  });
+
+  document.getElementById("friends-signin-btn")?.addEventListener("click", async () => {
+    const api = window.electronAPI;
+    if (!api?.loginWithMicrosoft) return;
+    setFriendsStatus("Opening Microsoft sign-in…");
+    try {
+      const result = await api.loginWithMicrosoft();
+      if (!result?.success) {
+        setFriendsStatus(result?.error || "Sign-in cancelled.", "error");
+      }
+    } catch (err) {
+      setFriendsStatus(err?.message || "Sign-in failed.", "error");
+    }
+  });
+
+  document.getElementById("friends-add-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("friends-add-input");
+    const name = String(input?.value || "").trim();
+    if (!name) return;
+    setFriendsStatus("Sending request…");
+    const result = await api.addFriend({ name });
+    if (result?.success) {
+      if (input) input.value = "";
+      setFriendsStatus(`Request sent to ${name}.`, "ok");
+      await refreshFriendsView();
+    } else {
+      setFriendsStatus(result?.error || "Could not add friend.", "error");
+    }
+  });
+
+  const handleFriendAction = async (e) => {
+    const accept = e.target.closest("[data-friend-accept]");
+    const decline = e.target.closest("[data-friend-decline]");
+    const cancel = e.target.closest("[data-friend-cancel]");
+    const remove = e.target.closest("[data-friend-remove]");
+
+    if (accept) {
+      const result = await api.addFriend({ profileId: accept.getAttribute("data-friend-accept") });
+      setFriendsStatus(result?.success ? "Friend accepted." : result?.error || "Failed.", result?.success ? "ok" : "error");
+      await refreshFriendsView();
+      return;
+    }
+    if (decline) {
+      const result = await api.removeFriend({ profileId: decline.getAttribute("data-friend-decline") });
+      setFriendsStatus(result?.success ? "Request declined." : result?.error || "Failed.", result?.success ? "ok" : "error");
+      await refreshFriendsView();
+      return;
+    }
+    if (cancel) {
+      const result = await api.removeFriend({ profileId: cancel.getAttribute("data-friend-cancel") });
+      setFriendsStatus(result?.success ? "Request cancelled." : result?.error || "Failed.", result?.success ? "ok" : "error");
+      await refreshFriendsView();
+      return;
+    }
+    if (remove) {
+      const result = await api.removeFriend({ profileId: remove.getAttribute("data-friend-remove") });
+      setFriendsStatus(result?.success ? "Friend removed." : result?.error || "Failed.", result?.success ? "ok" : "error");
+      await refreshFriendsView();
+    }
+  };
+
+  document.getElementById("friends-list")?.addEventListener("click", handleFriendAction);
+  document.getElementById("friends-incoming")?.addEventListener("click", handleFriendAction);
+  document.getElementById("friends-outgoing")?.addEventListener("click", handleFriendAction);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   await resolvePaymentsApiBase();
+  const api = window.electronAPI;
+  if (api?.getFabricSupportedVersions) {
+    try {
+      const supported = await api.getFabricSupportedVersions();
+      if (Array.isArray(supported) && supported.length) {
+        fabricSupportedVersions = supported;
+      }
+    } catch {
+      /* keep fallback list */
+    }
+  }
   initWindowControls();
   initTitlebarPlayer();
   initNavigation();
   initLaunchSelectors();
+  initHomeEditionPicker();
+  initCherryPetals();
+  document.body.classList.toggle("home-active", Boolean(document.getElementById("view-home")?.classList.contains("active")));
   initHomeNews();
+  initContentTabs();
+  initStoreTabs();
   initModrinth();
+  initModpacks();
+  initResourcePacks();
+  initShaders();
+  initLibrary();
+  initCreateInstance();
   initModDetailPanel();
   initCosmeticDetailPanel();
   initCosmetics();
-  initSocial();
-  initAssistant();
   initAccount();
+  initThanks();
+  initHost();
+  initSkins();
+  initFriends();
   initStore();
+  if (typeof window.initCosmicShop === "function") {
+    await window.initCosmicShop();
+  }
   initSpacePlus();
   initPaymentsRefresh();
   initSettings();
   initAutoUpdaterUI();
+  initMemeMode();
   initPlayButton();
+  await refreshInstances({ preserveSelection: true });
   updateActiveModCount();
+  initTrailerRecorder();
 });
+
+/** Trailer recorder: Alt+C / IPC clip feedback in Game Logs. */
+function initTrailerRecorder() {
+  const api = window.electronAPI;
+  if (!api?.onRecorderClip) return;
+  api.onRecorderClip((result) => {
+    if (result?.success) {
+      appendLaunchConsoleLine(
+        `[recorder] Saved ${result.eventType || "clip"} → ${result.fileName || result.path || "clips/raw"}`
+      );
+    } else if (result?.error) {
+      appendLaunchConsoleLine(`[recorder] Clip failed: ${result.error}`);
+    }
+  });
+  api.onRecorderStatus?.((status) => {
+    if (status?.recording && status?.target) {
+      appendLaunchConsoleLine(`[recorder] Capture target: ${status.target}`);
+    }
+  });
+}

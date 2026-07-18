@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Egrz — Staff Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Login composition -->
+    <section id="view-login" class="login-view" hidden>
+      <div class="login-atmosphere" aria-hidden="true"></div>
+      <div class="login-content">
+        <p class="login-kicker">Apex Launcher · Staff</p>
+        <h1 class="login-brand">Egrz</h1>
+        <p class="login-tag">Staff command for Apex Launcher — tickets, purchases, crashes, updates, agents.</p>
+        <a class="btn btn-primary" id="btn-discord-login" href="/api/staff/auth/login">Sign in with Discord</a>
+        <p class="login-hint" id="login-hint"></p>
+      </div>
+    </section>
+
+    <!-- Ops shell -->
+    <div id="view-shell" class="shell" hidden>
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">E</span>
+          <div>
+            <strong>Egrz</strong>
+            <small>Staff command</small>
+          </div>
+        </div>
+        <nav class="sidebar-nav" id="nav">
+          <button type="button" data-view="overview" class="nav-item active">Overview</button>
+          <button type="button" data-view="launcher-id" class="nav-item">Launcher ID</button>
+          <button type="button" data-view="tickets" class="nav-item">Tickets</button>
+          <button type="button" data-view="purchases" class="nav-item">Purchases</button>
+          <button type="button" data-view="players" class="nav-item">Players</button>
+          <button type="button" data-view="crashes" class="nav-item">Crashes</button>
+          <button type="button" data-view="updates" class="nav-item">Updates</button>
+          <button type="button" data-view="agents" class="nav-item">Agents &amp; Todos</button>
+          <button type="button" data-view="discord" class="nav-item">Discord Ops</button>
+        </nav>
+        <div class="sidebar-user" id="sidebar-user"></div>
+        <button type="button" class="btn btn-ghost" id="btn-logout">Sign out</button>
+      </aside>
+      <main class="main">
+        <header class="main-header">
+          <h2 id="page-title">Overview</h2>
+          <p id="page-sub" class="muted">Command center</p>
+        </header>
+        <div id="stage" class="stage"></div>
+      </main>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

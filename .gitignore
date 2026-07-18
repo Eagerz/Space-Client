@@ -11,6 +11,9 @@ src/assets/video/trailers/*.mp4
 backend/.env
 backend/data/
 
+# Runtime crash cases / local bot state
+data/
+
 # Expo mobile
 mobile/.env
 mobile/.expo/
