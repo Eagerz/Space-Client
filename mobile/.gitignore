@@ -39,6 +39,3 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-
-# Large trailer MP4s (not needed for APK build)
-/assets/video/trailers/*.mp4
