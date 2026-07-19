@@ -91,6 +91,21 @@ function localAnalyze(body = {}) {
     tips.push("Update GPU drivers; close overlays.");
     confidence = 0.7;
     resolvable = false;
+  } else if (/launch bridge|space bridge|geyser.*exit|bridge.*exited with code|bridge host|Failed to start Space Bridge/i.test(text)) {
+    diagnosis = "Space Bridge / Geyser host failed to start";
+    actions.push("none");
+    tips.push(
+      "Open a Java Singleplayer world and use Open to LAN on port 25565 before starting Space Bridge Host."
+    );
+    tips.push("Allow Apex Launcher and Java through Windows Firewall; free ports 19132 and 25565.");
+    confidence = 0.72;
+    resolvable = false;
+  } else if (/No Fabric API pin|Fabric API required/i.test(text)) {
+    diagnosis = "Minecraft version not supported for Fabric injection";
+    actions.push("none");
+    tips.push("Switch the instance to Minecraft 1.21.1 with Fabric, or use Vanilla.");
+    confidence = 0.92;
+    resolvable = false;
   } else if (exitCode === 1 || exitCode === -1 || /Minecraft has crashed/i.test(text)) {
     diagnosis = "Generic Minecraft crash";
     actions.push("clear_extra_mods", "clear_shader_caches");

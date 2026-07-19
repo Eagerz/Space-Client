@@ -43,6 +43,8 @@
       "preload.js",
       "auth-session.js",
       "auto-updater.js",
+      "crash-recovery.js",
+      "progression-jwt.js",
       "game-launcher.js",
       "mod-injection.js",
       "payments-config.js",

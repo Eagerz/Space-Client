@@ -66,6 +66,10 @@ function shouldAutoQueue(plan, { requireConfirm = false } = {}) {
   if ((plan.actions || []).some((a) => String(a).startsWith("suggest_")) && plan.tip) {
     return true;
   }
+  // High-confidence player guidance (e.g. Space Bridge host prerequisites) with no file repair.
+  if (plan.tip && confidence >= CONFIDENCE_QUEUE && plan.resolvable === false) {
+    return true;
+  }
   return false;
 }
 

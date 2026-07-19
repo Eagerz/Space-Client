@@ -75,26 +75,14 @@ const JAVA_TARGET_POOL = [
 
 const JAVA_TARGET_IDS = JAVA_TARGET_POOL.map((entry) => entry.value);
 
-const DEFAULT_FABRIC_MC = "26.2";
-const DEFAULT_JAVA_TARGET = "26.2";
+const DEFAULT_FABRIC_MC = "1.21.1";
+const DEFAULT_JAVA_TARGET = "1.21.1";
 
 const BEDROCK_PREVIEW_KEY = "space-launcher-bedrock-preview";
 const HOME_EDITION_KEY = "space-launcher-home-edition";
 
 /** Populated from main process (mod-injection FABRIC_API_BY_MC keys). */
 let fabricSupportedVersions = [
-  "26.3-snapshot-4",
-  "26.2",
-  "26.1.2",
-  "26.1.1",
-  "26.1",
-  "1.21.11",
-  "1.21.10",
-  "1.21.9",
-  "1.21.8",
-  "1.21.7",
-  "1.21.6",
-  "1.21.5",
   "1.21.4",
   "1.21.3",
   "1.21.2",
@@ -5709,9 +5697,14 @@ function buildLaunchCrashTips(logText = "", exitCode = null) {
   const text = String(logText || "");
   const tips = [];
 
+  if (/launch bridge|space bridge|geyser.*exit|bridge.*exited with code/i.test(text)) {
+    tips.push("Space Bridge failed — open a Java Singleplayer world → Open to LAN (port 25565) before clicking Host.");
+    tips.push("Allow Apex Launcher and Java through Windows Firewall; close other apps on ports 19132/25565.");
+  }
+
   if (/No Fabric API pin|Fabric API required.*Prefer/i.test(text)) {
     tips.push(`Open the launch menu and pick Minecraft ${DEFAULT_FABRIC_MC} with Fabric (recommended).`);
-    tips.push("Fabric is pinned for 26.2 / 26.1.x / 1.21.x — year-based IDs like 26.2 are the real Mojang versions (not 1.26.x).");
+    tips.push("Fabric is pinned for 1.21.x — use Vanilla for older releases without Fabric injection.");
     tips.push("Switch to Vanilla in the launch menu if you need an older release without Fabric injection.");
   }
 

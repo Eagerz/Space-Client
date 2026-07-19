@@ -14,6 +14,8 @@ try {
 const { useMcAuth } = require("electron-mc-auth");
 const authSession = require("./auth-session");
 const gameLauncher = require("./game-launcher");
+const crashRecovery = require("./crash-recovery");
+const modInjection = require("./mod-injection");
 const { initAutoUpdater, setMainWindow } = require("./auto-updater");
 const paymentsConfig = require("./payments-config");
 
@@ -58,6 +60,7 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
     setMainWindow(mainWindow);
+    crashRecovery.init(mainWindow);
     initAutoUpdater(mainWindow, { autoCheckDelayMs: 4000 });
   });
 
@@ -153,6 +156,8 @@ ipcMain.handle("launch:start", async (_event, options = {}) => {
 });
 
 ipcMain.handle("launch:is-running", () => gameLauncher.isGameRunning());
+
+ipcMain.handle("fabric:supported-versions", () => modInjection.getFabricSupportedVersions());
 
 ipcMain.handle("payments:open-external", async (_event, url) => {
   if (!isAllowedExternalUrl(url)) {

@@ -50,6 +50,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("launch:log", listener);
   },
 
+  getFabricSupportedVersions: () => ipcRenderer.invoke("fabric:supported-versions"),
+
+  runCrashRecovery: (payload) => ipcRenderer.invoke("crash:run-recovery", payload),
+  onCrashRecoveryStatus: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("crash:recovery-status", listener);
+    return () => ipcRenderer.removeListener("crash:recovery-status", listener);
+  },
+  onCrashRecoveryResult: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("crash:recovery-result", listener);
+    return () => ipcRenderer.removeListener("crash:recovery-result", listener);
+  },
+
   /** Open Stripe Checkout URL in the system browser (PCI-safe). */
   openPaymentPortal: (url) => ipcRenderer.invoke("payments:open-external", url),
   getPaymentsApiBase: () => ipcRenderer.invoke("payments:get-api-base"),

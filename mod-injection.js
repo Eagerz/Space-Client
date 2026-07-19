@@ -26,6 +26,13 @@ const FABRIC_API_BY_MC = {
   '1.21.4': '0.119.2+1.21.4',
 };
 
+/** Recommended default when UI offers Fabric. */
+const DEFAULT_FABRIC_MC = '1.21.1';
+
+function getFabricSupportedVersions() {
+  return Object.keys(FABRIC_API_BY_MC).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+}
+
 function readJsonFile(filePath) {
   // PowerShell Set-Content often writes UTF-8 with BOM, which JSON.parse rejects.
   const raw = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
@@ -345,6 +352,8 @@ module.exports = {
   SHIP_NAME,
   RT_NAME,
   FABRIC_API_BY_MC,
+  DEFAULT_FABRIC_MC,
+  getFabricSupportedVersions,
   defaultNativesDir,
   defaultBinDir,
   verifyAndResolve,

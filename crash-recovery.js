@@ -231,6 +231,15 @@ function localDiagnose(logText, exitCode) {
     actions.push("clear_extra_mods", "restage_fabric_injection");
     tips.push("Removing extra jars from .minecraft/mods and restaging Apex Launcher injection.");
     confidence = 0.78;
+  } else if (/launch bridge|space bridge|geyser.*exit|bridge.*exited with code|bridge host|Failed to start Space Bridge/i.test(text)) {
+    diagnosis = "Space Bridge / Geyser host failed to start";
+    actions.push("none");
+    tips.push(
+      "Open a Java Singleplayer world and use Open to LAN on port 25565 before starting Space Bridge Host."
+    );
+    tips.push("Allow Apex Launcher and Java through Windows Firewall; free ports 19132 and 25565.");
+    confidence = 0.72;
+    resolvable = false;
   } else if (/No Fabric API pin|Fabric API required.*Prefer/i.test(text)) {
     diagnosis = "Minecraft version not supported for Fabric";
     tips.push(`Open the launch menu and select Minecraft ${modInjection.DEFAULT_FABRIC_MC || "1.21.1"} with Fabric.`);
