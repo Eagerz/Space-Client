@@ -16,6 +16,7 @@ const STATUSES = new Set([
   "analyzing",
   "queued",
   "applied",
+  "fixed",
   "needs_staff",
   "failed",
 ]);

@@ -805,7 +805,13 @@ async function renderCrashes() {
 function statusBadge(status) {
   const s = String(status || "");
   const cls =
-    s === "applied" ? "ok" : s === "needs_staff" || s === "failed" ? "bad" : s === "queued" ? "" : "";
+    s === "applied" || s === "fixed"
+      ? "ok"
+      : s === "needs_staff" || s === "failed"
+        ? "bad"
+        : s === "queued"
+          ? ""
+          : "";
   return `<span class="badge ${cls}">${esc(s)}</span>`;
 }
 
