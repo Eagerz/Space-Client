@@ -631,6 +631,29 @@ function createStaffRouter(stripe) {
   });
 
   router.post(
+    "/fix-jobs/:id/fixed",
+    requireAuth("ops"),
+    express.json({ limit: "16kb" }),
+    async (req, res) => {
+      try {
+        const existing = fixJobs.getJob(req.params.id);
+        if (!existing) return res.status(404).json({ error: "Job not found" });
+        const body = req.body || {};
+        const closedBy =
+          req.egrz?.globalName || req.egrz?.username || req.egrz?.sub || "staff";
+        const job = await fixAgent.markJobFixed(req.params.id, {
+          note: body.note || null,
+          closedBy: String(closedBy),
+          notifyDiscord: body.notifyDiscord !== false,
+        });
+        res.json({ ok: true, job });
+      } catch (err) {
+        res.status(500).json({ error: err?.message || "Mark fixed failed" });
+      }
+    }
+  );
+
+  router.post(
     "/fix-jobs/:id/queue",
     requireAuth("ops"),
     express.json({ limit: "32kb" }),

@@ -217,7 +217,83 @@ function queueJobActions(jobId, opts = {}) {
 }
 
 /**
- * After launcher inbox ack — mark matching queued jobs applied and notify.
+ * Staff closes a job as fixed (testing or manual resolution).
+ * @param {string} jobId
+ * @param {{ note?: string, closedBy?: string, notifyDiscord?: boolean }} [opts]
+ */
+async function markJobFixed(jobId, opts = {}) {
+  const job = fixJobs.getJob(jobId);
+  if (!job) return null;
+
+  const closedBy = opts.closedBy || "staff";
+  const note = opts.note != null ? String(opts.note).trim().slice(0, 500) : null;
+  const updated = fixJobs.updateJob(jobId, {
+    status: "fixed",
+    appliedAt: new Date().toISOString(),
+    result: {
+      ...(job.result || {}),
+      message: "Status: fixed",
+      closedBy: String(closedBy).slice(0, 80),
+      ...(note ? { note } : {}),
+    },
+  });
+
+  if (opts.notifyDiscord !== false && job.notifyDiscord !== false) {
+    await notifyFixFixed(updated).catch((e) =>
+      console.warn("[fix-agent] fixed notify failed:", e?.message || e)
+    );
+  }
+
+  return updated;
+}
+
+async function notifyFixFixed(job) {
+  const playerMsg = {
+    embeds: [
+      jobEmbed(job, {
+        title: "Apex Launcher — issue fixed",
+        color: 0x5a9e6f,
+        extra: {
+          name: "Status",
+          value: "**fixed** — you can relaunch Minecraft or retry Space Bridge Host.",
+        },
+      }),
+    ],
+  };
+
+  let notify = { ...(job.notify || {}), fixed: {} };
+
+  if (job.ticketChannelId) {
+    notify.fixed.ticket = await sendDiscordMessage(job.ticketChannelId, {
+      content: job.discordId ? `<@${job.discordId}>` : undefined,
+      allowedMentions: job.discordId ? { users: [job.discordId] } : undefined,
+      ...playerMsg,
+    });
+  } else if (job.discordId) {
+    notify.fixed.dm = await dmUser(job.discordId, playerMsg);
+  }
+
+  const staffChannel = envId("DISCORD_STAFF_CHANNEL_ID");
+  if (staffChannel) {
+    notify.fixed.staff = await sendDiscordMessage(staffChannel, {
+      embeds: [
+        jobEmbed(job, {
+          title: "Fix Agent — status: fixed",
+          color: 0x5a9e6f,
+          extra: {
+            name: "Status",
+            value: "fixed",
+          },
+        }),
+      ],
+    });
+  }
+
+  return fixJobs.updateJob(job.id, { notify });
+}
+
+/**
+ * After launcher inbox ack — mark matching queued jobs fixed and notify.
  * @param {string} launcherId
  * @param {{ applied?: string[], tipShown?: boolean, updateCheckDone?: boolean }} ack
  */
@@ -244,19 +320,19 @@ async function onInboxAck(launcherId, ack = {}) {
     }
 
     const updated = fixJobs.updateJob(job.id, {
-      status: "applied",
+      status: "fixed",
       appliedAt: new Date().toISOString(),
       result: {
         applied: appliedIds,
         tipShown: Boolean(ack.tipShown),
         updateCheckDone: Boolean(ack.updateCheckDone),
-        message: "Launcher applied the fix",
+        message: "Status: fixed — launcher applied the fix",
       },
     });
     completed.push(updated);
     if (job.notifyDiscord !== false) {
-      await notifyFixApplied(updated).catch((e) =>
-        console.warn("[fix-agent] applied notify failed:", e?.message || e)
+      await notifyFixFixed(updated).catch((e) =>
+        console.warn("[fix-agent] fixed notify failed:", e?.message || e)
       );
     }
   }
@@ -445,7 +521,9 @@ module.exports = {
   shouldAutoQueue,
   runFixJob,
   queueJobActions,
+  markJobFixed,
   onInboxAck,
   notifyFixQueued,
   notifyFixApplied,
+  notifyFixFixed,
 };
